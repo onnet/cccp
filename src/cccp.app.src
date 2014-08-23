@@ -1,6 +1,6 @@
 {application, cccp,
  [
-  {description, "Skel - A cccpeton application useful for quickly creating services"},
+  {description, "CCCP - Calling Card Callback Platform"},
   {vsn, "0.0.1"},
   {modules, []},
   {registered, []},
