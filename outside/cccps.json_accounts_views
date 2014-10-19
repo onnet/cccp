@@ -1,0 +1,12 @@
+{ 
+    "_id": "_design/cccps"
+    ,"language": "javascript"
+    ,"views": {
+        "cid_listing": {
+            "map": "function(doc) { if (doc.pvt_type != 'cccp_cid' || doc.pvt_deleted) return; emit(doc.cid, {'account_id': doc.pvt_account_id, 'outbound_cid':doc.outbound_cid, 'force_outbound_cid':doc.force_outbound_cid}); }"
+        },
+        "pin_listing": {
+            "map": "function(doc) { if (doc.pvt_type != 'cccp_pin' || doc.pvt_deleted) return; emit(doc.pin, {'account_id': doc.pvt_account_id, 'outbound_cid':doc.outbound_cid, 'force_outbound_cid':doc.force_outbound_cid}); }"
+        }
+    }
+}

@@ -23,17 +23,13 @@
 
 -record(state, {}).
 
-%% By convention, we put the options here in macros, but not required.
--define(BINDINGS, [{'route', []}
-                   ,{'self', []}
+-define(BINDINGS, [{'self', []}
+                  ,{'route', []}
+                  ,{'conf', [{'doc_type', <<"sys_info">>}]}
                   ]).
--define(RESPONDERS, [
-                     %% Received because of our route binding
-                     {{'cccp_handlers', 'handle_route_req'}, [{<<"dialplan">>, <<"route_req">>}]}
-
-                     %% Received because of our self binding (route_wins are sent to the route_resp's Server-ID
-                     %% which is usually populated with the listener's queue name
-                     ,{{'cccp_handlers', 'handle_route_win'}, [{<<"dialplan">>, <<"route_win">>}]}
+-define(RESPONDERS, [{{'cccp_handlers', 'handle_route_req'}, [{<<"dialplan">>, <<"route_req">>}]}
+                    ,{{'cccp_handlers', 'handle_route_win'}, [{<<"dialplan">>, <<"route_win">>}]}
+                    ,{{'cccp_handlers', 'handle_config_change'}, [{<<"configuration">>, <<"*">>}]}
                     ]).
 -define(QUEUE_NAME, <<>>).
 -define(QUEUE_OPTIONS, []).

@@ -1,42 +1,46 @@
 %%%-------------------------------------------------------------------
-%%% @copyright (C) 2013, 2600Hz
 %%% @doc
 %%%
 %%% @end
 %%% @contributors
 %%%-------------------------------------------------------------------
--module(cccp_sup).
+-module(cccp_callback_sup).
 
 -behaviour(supervisor).
 
--export([start_link/0]).
+%% API
+-export([start_link/0
+         ,new/1
+        ]).
+
+%% Supervisor callbacks
 -export([init/1]).
 
 -include("cccp.hrl").
 
-%% Helper macro for declaring children of supervisor
--define(CHILDREN, [
-                   ?WORKER('cccp_listener')
-                   ,?SUPER('cccp_callback_sup')
-                  ]).
+-define(CHILDREN, [?WORKER_TYPE('cccp_callback_handler', 'temporary')]).
 
-%% ===================================================================
-%% API functions
-%% ===================================================================
+%%%===================================================================
+%%% API functions
+%%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @public
 %% @doc
 %% Starts the supervisor
+%%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> startlink_ret().
+-spec(start_link() ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    supervisor:start_link({'local', ?MODULE}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-%% ===================================================================
-%% Supervisor callbacks
-%% ===================================================================
+-spec new(wh_json:object()) -> sup_startchild_ret().
+new(JObj) -> supervisor:start_child(?MODULE, [JObj]).
+
+%%%===================================================================
+%%% Supervisor callbacks
+%%%===================================================================
 
 %%--------------------------------------------------------------------
 %% @public
@@ -49,10 +53,13 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec init([]) -> sup_init_ret().
 init([]) ->
-    RestartStrategy = 'one_for_one',
+    RestartStrategy = 'simple_one_for_one',
     MaxRestarts = 5,
     MaxSecondsBetweenRestarts = 10,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-
     {'ok', {SupFlags, ?CHILDREN}}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================

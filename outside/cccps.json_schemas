@@ -1,0 +1,29 @@
+{
+   "_id":"cccps",
+   "id":"http://json-schema.org/draft-03/schema#",
+   "description":"Calling cards callback platform user's info",
+   "properties":{
+      "outbound_cid":{
+         "type":"string",
+         "description":"CID you would like to call out with"
+      },
+      "force_outbound_cid":{
+         "description":"Flag to determine if the initial call has been detected",
+         "type":"boolean",
+         "default":true
+      },
+      "active":{
+         "description":"Show's whether CID/PIN active",
+         "type":"boolean",
+         "default":false
+      },
+      "cid":{
+         "type":"string",
+         "description":"CID to authorize"
+      },
+      "pin":{
+         "type":"string",
+         "description":"PIN to authorize"
+      }
+   }
+}
