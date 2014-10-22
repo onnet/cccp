@@ -3,6 +3,8 @@
 -export([handle_route_req/2
         ,handle_route_win/2
         ,handle_config_change/2
+        ,handle_all/2
+        ,handle_cccp_call/1
         ]).
 
 -include("cccp.hrl").
@@ -39,7 +41,7 @@ handle_route_win(JObj, _Props) ->
         {'ok', Call} ->
             handle_cccp_call(whapps_call:from_route_win(JObj, Call));
         {'error', _R} ->
-            lager:debug("CCCP. Unable to find call record during route_win")
+            lager:debug("Unable to find call record during route_win")
     end.
 
 handle_cccp_call(Call) ->
@@ -51,9 +53,12 @@ handle_cccp_call(Call) ->
         CB_Number ->
             cccp_util:handle_callback(CID, Call);
         CC_Number ->
-            cccp_util:handle_call_platform(CID, Call)
+            cccp_util:handle_call_to_platform(CID, Call)
     end.
     
 handle_config_change(_JObj, _Props) ->
     'ok'.
-
+    
+handle_all(JObj, Props) ->
+    lager:info("CCCP Handle All JObj: ~p", [JObj]),
+    lager:info("CCCP Handle All Props: ~p", [Props]).

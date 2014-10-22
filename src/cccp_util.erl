@@ -1,8 +1,7 @@
 -module(cccp_util).
 
--export([cid_authorize/1
-        ,handle_callback/2
-        ,handle_call_platform/2
+-export([handle_callback/2
+        ,handle_call_to_platform/2
         ]).
 
 -include("cccp.hrl").
@@ -12,22 +11,22 @@ cid_authorize(CID) ->
     ViewOptions = [{'key', CID}],
     case couch_mgr:get_results(?CCCPS_DB, <<"cccps/cid_listing">>, ViewOptions) of
         {ok,[]} ->
-            lager:info("CCCP Callback request is Not authorized for ~p. No CID in Db.", [CID]),
+            lager:info("Auth by CID failed for: ~p. No CID in Db.", [CID]),
             'unauthorized';
         {ok, [JObj]} -> 
-            lager:info("IAM Callback request is authorized for ~p", [JObj]),
+            lager:info("CID ~p is authorized.", [JObj]),
             [
              wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
              wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
              wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj)
             ];
         E -> 
-            lager:info("CCCP Callback request is Not authorized for ~p. Error occurred: ~p.", [CID, E]),
+            lager:info("Auth by CID failed for ~p. Error occurred: ~p.", [CID, E]),
             'unauthorized'
     end.
 
 handle_callback(CallerNumber, Call) ->
-    lager:info("CCCP. Inside handle_callback"),
+    lager:info("Inside handle_callback"),
     whapps_call_command:hangup(Call),
     case cid_authorize(CallerNumber) of
         [AccountId, AccountCID, _ForceCID] ->
@@ -39,63 +38,83 @@ handle_callback(CallerNumber, Call) ->
             timer:sleep(2000),
             cccp_callback_handler:add_request(JObj);
         _ ->
-            lager:info("CCCP. No caller information found for ~p.", [CallerNumber]),
+            lager:info("No caller information found for ~p. Won't call it back.", [CallerNumber]),
             'ok'
     end.
 
-handle_call_platform(CID, Call) ->
-    lager:info("CCCP. Inside handle_call_platform"),
+handle_call_to_platform(CID, Call) ->
+    lager:info("CCCP. Inside handle_call_to_platform"),
     whapps_call_command:answer(Call),
     case cid_authorize(CID) of
-        [_AccountId, _AccountCID, _ForceCID] ->
-            allow_dial(Call);
+        [AccountId, AccountCID, ForceCID] ->
+            dial(AccountId, AccountCID, ForceCID, Call);
         _ ->
             pin_authorize(Call) 
     end.
 
-allow_dial(Call) ->
-    play_ringing(Call),
-    play_dialtone(Call).
+dial(AccountId, AccountCID, ForceCID, Call) ->
+    case whapps_call_command:b_prompt_and_collect_digits(3,12,<<"cf-enter_number">>,3,Call) of
+       {ok,<<>>} ->
+           lager:info("No Phone number entered."),
+           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:hangup(Call);
+       {ok, EnteredNumber} ->
+           Number = wnm_util:to_e164(EnteredNumber),
+           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+           EP = stepswitch_resources:endpoints(Number, wh_json:new()),
+           lager:info("EndPoints: ~p", [EP]),
+           Call1 = whapps_call:set_account_id(AccountId, Call),
+           Call2 = case ForceCID of
+                       'false' -> Call1;
+                       _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
+                   end,
+           lager:info("Outbound Call: ~p", [Call2]),
+           whapps_call_command:bridge(EP, Call2);
+       _ ->
+           lager:info("No Phone number obtained."),
+           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:hangup(Call)
+     end.
+
 
 pin_authorize(Call) ->
-    play_ringing(Call),
-    Prompt = <<"disa-enter_pin">>,
-    NoopId = whapps_call_command:prompt(Prompt, Call),
-    case whapps_call_command:collect_digits(6
-                                            ,whapps_call_command:default_collect_timeout()
-                                            ,whapps_call_command:default_interdigit_timeout()
-                                            ,NoopId
-                                            ,Call
-                                           )
-    of
-        {'ok', Pin} ->
-            check_pin(Pin);
-        E ->
-            lager:info("caller entered bad pin: '~s'", [E]),
-            _ = whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-            whapps_call_command:queued_hangup(Call)
-    end.
+    case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
+       {ok,<<>>} ->
+           whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+           whapps_call_command:hangup(Call);
+       {ok, EnteredPin} ->
+           lager:info("Pin entered."),
+           case check_pin(EnteredPin) of
+               [AccountId, AccountCID, ForceCID] ->
+                   dial(AccountId, AccountCID, ForceCID, Call);
+               _ ->
+                   lager:info("Wrong Pin entered."),
+                   whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+                   whapps_call_command:hangup(Call)
+           end;
+       _ ->
+           lager:info("No pin entered."),
+           whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+           whapps_call_command:hangup(Call)
+     end.
+        
 
 
 check_pin(Pin)->
-    lager:info("CCCP checking Pin: ~p", [Pin]).
-
-
-play_dialtone(Call) ->
-    lager:info("CCCP. Inside play_dialtone"),
-    Tone = wh_json:from_list([{<<"Frequencies">>, [<<"350">>, <<"440">>]}
-                              ,{<<"Duration-ON">>, <<"5000">>}
-                              ,{<<"Duration-OFF">>, <<"0">>}
-                              ]),
-    whapps_call_command:tones([Tone], Call).
-
-
-play_ringing(Call) ->
-    lager:info("CCCP. Inside play_ringing"),
-    Tone = wh_json:from_list([{<<"Frequencies">>, [<<"440">>, <<"480">>]}
-                              ,{<<"Duration-ON">>, <<"2000">>}
-                              ,{<<"Duration-OFF">>, <<"4000">>}
-                              ,{<<"Repeat">>, 1}
-                             ]),
-    whapps_call_command:tones([Tone], Call).
+    ViewOptions = [{'key', Pin}],
+    case couch_mgr:get_results(?CCCPS_DB, <<"cccps/pin_listing">>, ViewOptions) of
+        {ok,[]} ->
+            lager:info("Auth by Pin failed for: ~p. No Pin in Db.", [Pin]),
+            'unauthorized';
+        {ok, [JObj]} ->
+            lager:info("Pin ~p is authorized.", [JObj]),
+            [
+             wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
+             wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
+             wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj)
+            ];
+        E ->
+            lager:info("Auth by Pin failed for ~p. Error occurred: ~p.", [Pin, E]),
+            'unauthorized'
+    end.
 

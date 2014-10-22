@@ -131,8 +131,13 @@ handle_cast('hangup_parked_call', State) ->
     end,
     {'noreply', State#state{parked_call = 'undefined'}};
 handle_cast({'parked', CallId}, State) ->
+    
+    lager:info("CCCP. Right before prompt"),
+    Result = whapps_call_command:prompt_and_collect_digits(1,2,<<"disa-enter_pin">>,3,State#state.stored_call),
+    lager:info("CCCP. Right after prompt. Result: ~p", [Result]),
+
     Req = build_bridge_request(CallId, State#state.stored_call, State#state.queue),
-    lager:debug("Publishing bridge request"),
+    lager:info("CCCP2 Publishing bridge request"),
     wapi_resource:publish_originate_req(Req),
     {'noreply', State#state{parked_call = CallId}};
 handle_cast('stop_callback', State) ->
@@ -239,11 +244,12 @@ code_change(_OldVsn, State, _Extra) ->
 build_bridge_request(ParkedCallId, Call, Q) ->
     CIDNumber = whapps_call:kvs_fetch('cf_capture_group', Call),
     MsgId = wh_util:rand_hex_binary(6),
+    [EPRes] = stepswitch_resources:endpoints(<<"+78122404700">>, wh_json:new()),
     AcctId = <<"4f748e5be021ed36ac4913c5485b6d7d">>,
-    EP = [{[{<<"Route">>,<<"sip:7812060@94.125.5.63">>}
-            ,{<<"Callee-ID-Number">>,<<"7812060">>}
+    EP = [{[{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
+            ,{<<"Callee-ID-Number">>,<<"78122404700">>}
             ,{<<"Outbound-Caller-ID-Number">>, <<"78123634500">>}
-            ,{<<"To-DID">>,<<"7812060">>}
+            ,{<<"To-DID">>,<<"78122404700">>}
             ,{<<"Invite-Format">>,<<"route">>}
             ,{<<"Caller-ID-Type">>,<<"external">>}
             ,{<<"Account-ID">>, AcctId}
