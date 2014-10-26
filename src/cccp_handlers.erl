@@ -5,6 +5,7 @@
         ,handle_config_change/2
         ,handle_all/2
         ,handle_cccp_call/1
+        ,handle_callinfo/2
         ]).
 
 -include("cccp.hrl").
@@ -34,12 +35,18 @@ handle_route_req(JObj, Props) ->
           'ok'
     end.
 
-handle_route_win(JObj, _Props) ->
+handle_route_win(JObj, Props) ->
     lager:info("CCCP has received a route win, taking control of the call"),
     'true' = wapi_route:win_v(JObj),
-    case whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME) of
+    CallId = wh_json:get_value(<<"Call-ID">>, JObj),
+    case whapps_call:retrieve(CallId, ?APP_NAME) of
         {'ok', Call} ->
-            handle_cccp_call(whapps_call:from_route_win(JObj, Call));
+            WonCall = whapps_call:kvs_store('route_win_pid', self(), whapps_call:from_route_win(JObj, Call)),
+            whapps_call:cache(WonCall, ?APP_NAME),
+            Srv = props:get_value('server', Props),
+            gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
+            gen_listener:add_responder(Srv, {?MODULE, 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
+            handle_cccp_call(WonCall);
         {'error', _R} ->
             lager:debug("Unable to find call record during route_win")
     end.
@@ -58,6 +65,11 @@ handle_cccp_call(Call) ->
     
 handle_config_change(_JObj, _Props) ->
     'ok'.
+    
+handle_callinfo(JObj, Props) ->
+    cccp_util:relay_amqp(JObj, Props),
+    lager:info("CCCP Handle Callinfo JObj: ~p", [JObj]),
+    lager:info("CCCP Handle Callinfo Props: ~p", [Props]).
     
 handle_all(JObj, Props) ->
     lager:info("CCCP Handle All JObj: ~p", [JObj]),
