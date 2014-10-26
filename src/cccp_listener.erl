@@ -24,7 +24,6 @@
 -record(state, {}).
 
 -define(BINDINGS, [{'self', []}
-%                  ,{'call', []}
                   ,{'route', []}
                   ,{'conf', [{'doc_type', <<"sys_info">>}]}
                   ]).
