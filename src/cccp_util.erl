@@ -2,6 +2,7 @@
 
 -export([handle_callback/2
         ,handle_call_to_platform/2
+        ,relay_amqp/2
         ]).
 
 -include("cccp.hrl").
@@ -98,8 +99,6 @@ pin_authorize(Call) ->
            whapps_call_command:hangup(Call)
      end.
         
-
-
 check_pin(Pin)->
     ViewOptions = [{'key', Pin}],
     case couch_mgr:get_results(?CCCPS_DB, <<"cccps/pin_listing">>, ViewOptions) of
@@ -117,4 +116,15 @@ check_pin(Pin)->
             lager:info("Auth by Pin failed for ~p. Error occurred: ~p.", [Pin, E]),
             'unauthorized'
     end.
+
+relay_amqp(JObj, _Props) ->
+    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+    RouteWinPid = whapps_call:kvs_fetch('route_win_pid', Call),
+    case is_pid(RouteWinPid) of
+        true ->
+            whapps_call_command:relay_event(RouteWinPid, JObj);
+        _ ->
+            'ok'
+    end.
+
 
