@@ -3,7 +3,6 @@
 -export([handle_route_req/2
         ,handle_route_win/2
         ,handle_config_change/2
-        ,handle_all/2
         ,handle_cccp_call/1
         ,handle_callinfo/2
         ]).
@@ -67,10 +66,4 @@ handle_config_change(_JObj, _Props) ->
     'ok'.
     
 handle_callinfo(JObj, Props) ->
-    cccp_util:relay_amqp(JObj, Props),
-    lager:info("CCCP Handle Callinfo JObj: ~p", [JObj]),
-    lager:info("CCCP Handle Callinfo Props: ~p", [Props]).
-    
-handle_all(JObj, Props) ->
-    lager:info("CCCP Handle All JObj: ~p", [JObj]),
-    lager:info("CCCP Handle All Props: ~p", [Props]).
+    cccp_util:relay_amqp(JObj, Props).

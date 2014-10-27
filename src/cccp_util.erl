@@ -28,11 +28,9 @@ cid_authorize(CID) ->
     end.
 
 handle_callback(CallerNumber, Call) ->
-    lager:info("Inside handle_callback"),
     whapps_call_command:hangup(Call),
     case cid_authorize(CallerNumber) of
         [AccountId, AccountCID, _ForceCID] ->
-            lager:info("CCCP. Caller information found for ~p. AccountId: ~p AccountCID: ~p", [CallerNumber, AccountId, AccountCID]),
             JObj = {[{<<"Number">>, CallerNumber}
                     ,{<<"Account-ID">>, AccountId}
                     ,{<<"Outbound-Caller-ID-Number">>, AccountCID}
@@ -45,7 +43,6 @@ handle_callback(CallerNumber, Call) ->
     end.
 
 handle_call_to_platform(CID, Call) ->
-    lager:info("CCCP. Inside handle_call_to_platform"),
     whapps_call_command:answer(Call),
     case cid_authorize(CID) of
         [AccountId, AccountCID, ForceCID] ->

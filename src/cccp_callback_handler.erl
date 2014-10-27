@@ -199,7 +199,7 @@ handle_resource_response(JObj, Props) ->
                 {<<"bridge">>, <<"SUCCESS">>} ->
                     lager:debug("Users bridged"),
                     gen_listener:cast(Srv, 'stop_callback');
-                _Ev -> lager:info("Unhandled in event: ~p", [_Ev])
+                _Ev -> lager:info("Unhandled event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
             gen_listener:cast(Srv, 'hangup_parked_call'),
@@ -235,7 +235,7 @@ code_change(_OldVsn, State, _Extra) ->
     {'ok', State}.
 
 %%%===================================================================
-%%% Internal functions  State#state.stored_call, State#state.queue
+%%% Internal functions
 %%%===================================================================
 -spec build_bridge_request(wh_json:object(), whapps_call:call(), ne_binary()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
@@ -312,7 +312,7 @@ get_number(Srv, CallId, Call) ->
            whapps_call_command:hangup(Call);
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(EnteredNumber),
-           lager:info("IAM Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
         %   Call1 = whapps_call:set_account_id(AccountId, Call),
         %   Call2 = case ForceCID of
         %               'false' -> Call1;

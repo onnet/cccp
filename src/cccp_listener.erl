@@ -30,7 +30,6 @@
 -define(RESPONDERS, [{{'cccp_handlers', 'handle_route_req'}, [{<<"dialplan">>, <<"route_req">>}]}
                     ,{{'cccp_handlers', 'handle_route_win'}, [{<<"dialplan">>, <<"route_win">>}]}
                     ,{{'cccp_handlers', 'handle_config_change'}, [{<<"configuration">>, <<"*">>}]}
-%                    ,{{'cccp_handlers', 'handle_all'}, [{<<"*">>, <<"*">>}]}
                     ]).
 -define(QUEUE_NAME, <<>>).
 -define(QUEUE_OPTIONS, []).
