@@ -3,6 +3,7 @@
 -export([handle_callback/2
         ,handle_call_to_platform/2
         ,relay_amqp/2
+        ,truncate_plus/1
         ]).
 
 -include("cccp.hrl").
@@ -119,7 +120,7 @@ check_pin(Pin)->
 
 relay_amqp(JObj, _Props) ->
     {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
-    RouteWinPid = whapps_call:kvs_fetch('route_win_pid', Call),
+    RouteWinPid = whapps_call:kvs_fetch('relay_amqp_pid', Call),
     case is_pid(RouteWinPid) of
         true ->
             whapps_call_command:relay_event(RouteWinPid, JObj);
@@ -127,4 +128,11 @@ relay_amqp(JObj, _Props) ->
             'ok'
     end.
 
+truncate_plus(Number) ->
+    case Number of
+        <<$+, PluslessNumber/binary>> ->
+            PluslessNumber;
+        PluslessNumber ->
+            PluslessNumber
+    end.
 

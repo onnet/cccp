@@ -19,6 +19,7 @@
     ,code_change/3
     ,handle_resource_response/2
     ,build_bridge_request/3
+    ,handle_dtmf/2
 ]).
 
 -export([add_request/1]).
@@ -37,11 +38,13 @@
 -define(MK_CALL_BINDING(CALLID), [{'callid', CALLID}, {'restrict_to', [<<"CHANNEL_DESTROY">>
                                                                        ,<<"CHANNEL_ANSWER">>]}]).
 
--define(BINDINGS, [{'self', []}]).
+-define(BINDINGS, [{'self', []}
+                  ]).
 -define(RESPONDERS, [{{?MODULE, 'handle_resource_response'}
                       ,[{<<"*">>, <<"*">>}]
                      }
                     ]).
+
 -define(QUEUE_NAME, <<>>).
 -define(QUEUE_OPTIONS, []).
 -define(CONSUME_OPTIONS, []).
@@ -66,16 +69,11 @@ init(JObj) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
     AccountCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
-    Call = whapps_call:from_json(wh_json:get_value(<<"Call">>, JObj)),
-    lager:info("Statred offnet handler(~p) for request ~s->~s", [self(), whapps_call:from_user(Call), CustomerNumber]),
-
-    lager:info("IAM JObj: ~p", [JObj]),
-    lager:info("IAM AccountCID: ~p", [AccountCID]),
 
     {'ok', #state{customer_number = CustomerNumber
                   ,account_id = AccountId
                   ,account_cid = AccountCID
-                  ,stored_call = Call
+                  ,stored_call = whapps_call:new()
                   ,queue = 'undefined'
                  }}.
 
@@ -130,14 +128,8 @@ handle_cast('hangup_parked_call', State) ->
         'true' -> 'ok'
     end,
     {'noreply', State#state{parked_call = 'undefined'}};
-handle_cast({'parked', CallId}, State) ->
-    
-    lager:info("CCCP. Right before prompt"),
-    Result = whapps_call_command:prompt_and_collect_digits(1,2,<<"disa-enter_pin">>,3,State#state.stored_call),
-    lager:info("CCCP. Right after prompt. Result: ~p", [Result]),
-
-    Req = build_bridge_request(CallId, State#state.stored_call, State#state.queue),
-    lager:info("CCCP2 Publishing bridge request"),
+handle_cast({'parked', CallId, ToDID}, State) ->
+    Req = build_bridge_request(CallId, ToDID, State),
     wapi_resource:publish_originate_req(Req),
     {'noreply', State#state{parked_call = CallId}};
 handle_cast('stop_callback', State) ->
@@ -190,8 +182,13 @@ handle_resource_response(JObj, Props) ->
             ResResp = wh_json:get_value(<<"Resource-Response">>, JObj),
             handle_originate_ready(ResResp, Props);
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
-            lager:debug("time to bridge"),
-            gen_listener:cast(Srv, {'parked', CallId});
+            {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
+            CallPreUpdate = whapps_call:from_route_req(JObj, Call),
+            CallUpdate = whapps_call:kvs_store('relay_amqp_pid', self(), CallPreUpdate),
+            whapps_call:cache(CallUpdate, ?APP_NAME),
+            gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
+            gen_listener:add_responder(Srv, {?MODULE, 'handle_dtmf'}, [{<<"*">>, <<"*">>}]),
+            get_number(Srv, CallId, CallUpdate);
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             lager:debug("Got channel destroy, retrying..."),
             gen_listener:cast(Srv, 'wait');
@@ -202,7 +199,7 @@ handle_resource_response(JObj, Props) ->
                 {<<"bridge">>, <<"SUCCESS">>} ->
                     lager:debug("Users bridged"),
                     gen_listener:cast(Srv, 'stop_callback');
-                _Ev -> lager:info("Unhandled event: ~p", [_Ev])
+                _Ev -> lager:info("Unhandled in event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
             gen_listener:cast(Srv, 'hangup_parked_call'),
@@ -238,35 +235,31 @@ code_change(_OldVsn, State, _Extra) ->
     {'ok', State}.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions  State#state.stored_call, State#state.queue
 %%%===================================================================
 -spec build_bridge_request(wh_json:object(), whapps_call:call(), ne_binary()) -> wh_proplist().
-build_bridge_request(ParkedCallId, Call, Q) ->
-    CIDNumber = whapps_call:kvs_fetch('cf_capture_group', Call),
+build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
-    [EPRes] = stepswitch_resources:endpoints(<<"+78122404700">>, wh_json:new()),
-    AcctId = <<"4f748e5be021ed36ac4913c5485b6d7d">>,
+    [EPRes] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
     EP = [{[{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
-            ,{<<"Callee-ID-Number">>,<<"78122404700">>}
-            ,{<<"Outbound-Caller-ID-Number">>, <<"78123634500">>}
-            ,{<<"To-DID">>,<<"78122404700">>}
+            ,{<<"Callee-ID-Number">>, ToDID}
+            ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
+            ,{<<"To-DID">>, ToDID}
             ,{<<"Invite-Format">>,<<"route">>}
             ,{<<"Caller-ID-Type">>,<<"external">>}
-            ,{<<"Account-ID">>, AcctId}
+            ,{<<"Account-ID">>, State#state.account_id}
             ,{<<"Endpoint-Type">>,<<"sip">>}
          ]}],
     props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
         ,{<<"Application-Name">>, <<"bridge">>}
-        ,{<<"Existing-Call-ID">>, ParkedCallId}
+        ,{<<"Existing-Call-ID">>, CallId}
         ,{<<"Endpoints">>, EP}
-        ,{<<"Outbound-Caller-ID-Number">>, CIDNumber}
+        ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
         ,{<<"Originate-Immediate">>, 'false'}
         ,{<<"Msg-ID">>, MsgId}
-        ,{<<"Account-ID">>, AcctId}
-        ,{<<"Account-Realm">>, whapps_call:from_realm(Call)}
+        ,{<<"Account-ID">>, State#state.account_id}
         ,{<<"Timeout">>, 10000}
-        ,{<<"From-URI-Realm">>, whapps_call:from_realm(Call)}
-        | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
+        | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
     ]).
 
 originate_park(State) ->
@@ -282,6 +275,8 @@ handle_originate_ready(JObj, Props) ->
             Q = wh_json:get_value(<<"Server-ID">>, JObj),
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             CtrlQ = wh_json:get_value(<<"Control-Queue">>, JObj),
+            Call = whapps_call:set_control_queue(CtrlQ, whapps_call:from_route_req(JObj)),
+            whapps_call:cache(Call, ?APP_NAME),
             Prop = [{<<"Call-ID">>, CallId}
                     ,{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
                     | wh_api:default_headers(gen_listener:queue_name(Srv), ?APP_NAME, ?APP_VERSION)
@@ -305,6 +300,29 @@ create_request(State) ->
                ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>]}
                | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
               ],
-    lager:info("IAM create_request Request: ~p", [Request]),
     Request.
+
+handle_dtmf(JObj, Props) ->
+    cccp_util:relay_amqp(JObj, Props).
+
+get_number(Srv, CallId, Call) ->
+    case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
+       {ok,<<>>} ->
+           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:hangup(Call);
+       {ok, EnteredNumber} ->
+           Number = wnm_util:to_e164(EnteredNumber),
+           lager:info("IAM Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+        %   Call1 = whapps_call:set_account_id(AccountId, Call),
+        %   Call2 = case ForceCID of
+        %               'false' -> Call1;
+        %               _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
+        %           end,
+        %   lager:info("Outbound Call: ~p", [Call2]),
+           gen_listener:cast(Srv, {'parked', CallId, cccp_util:truncate_plus(Number)});
+       _ ->
+           lager:info("No Phone number obtained."),
+           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:hangup(Call)
+     end.
 

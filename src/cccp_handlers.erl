@@ -41,7 +41,7 @@ handle_route_win(JObj, Props) ->
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
     case whapps_call:retrieve(CallId, ?APP_NAME) of
         {'ok', Call} ->
-            WonCall = whapps_call:kvs_store('route_win_pid', self(), whapps_call:from_route_win(JObj, Call)),
+            WonCall = whapps_call:kvs_store('relay_amqp_pid', self(), whapps_call:from_route_win(JObj, Call)),
             whapps_call:cache(WonCall, ?APP_NAME),
             Srv = props:get_value('server', Props),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
