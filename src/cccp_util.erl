@@ -1,6 +1,7 @@
 -module(cccp_util).
 
--export([handle_callback/2
+-export([handle_cccp_call/1
+        ,handle_callback/2
         ,handle_call_to_platform/2
         ,relay_amqp/2
         ,truncate_plus/1
@@ -8,6 +9,18 @@
 
 -include("cccp.hrl").
 
+
+handle_cccp_call(Call) ->
+    CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
+    ReqNum = wnm_util:normalize_number(whapps_call:request_user(Call)),
+    CB_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>)),
+    CC_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>)),
+    case ReqNum of
+        CB_Number ->
+            cccp_util:handle_callback(CID, Call);
+        CC_Number ->
+            cccp_util:handle_call_to_platform(CID, Call)
+    end.
 
 cid_authorize(CID) ->
     ViewOptions = [{'key', CID}],
@@ -52,29 +65,31 @@ handle_call_to_platform(CID, Call) ->
     end.
 
 dial(AccountId, AccountCID, ForceCID, Call) ->
-    case whapps_call_command:b_prompt_and_collect_digits(3,12,<<"cf-enter_number">>,3,Call) of
+    {'num_to_dial', Number} = get_number(Call),
+    EP = stepswitch_resources:endpoints(Number, wh_json:new()),
+    lager:info("EndPoints: ~p", [EP]),
+    Call1 = whapps_call:set_account_id(AccountId, Call),
+    Call2 = case ForceCID of
+        'false' -> Call1;
+         _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
+    end,
+    lager:info("Outbound Call: ~p", [Call2]),
+    whapps_call_command:bridge(EP, Call2).
+
+get_number(Call) ->
+    case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
        {ok,<<>>} ->
-           lager:info("No Phone number entered."),
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:hangup(Call);
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(EnteredNumber),
            lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           EP = stepswitch_resources:endpoints(Number, wh_json:new()),
-           lager:info("EndPoints: ~p", [EP]),
-           Call1 = whapps_call:set_account_id(AccountId, Call),
-           Call2 = case ForceCID of
-                       'false' -> Call1;
-                       _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
-                   end,
-           lager:info("Outbound Call: ~p", [Call2]),
-           whapps_call_command:bridge(EP, Call2);
+           {'num_to_dial', cccp_util:truncate_plus(Number)};
        _ ->
            lager:info("No Phone number obtained."),
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:hangup(Call)
      end.
-
 
 pin_authorize(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of

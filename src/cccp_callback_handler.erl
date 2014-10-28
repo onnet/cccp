@@ -19,7 +19,6 @@
     ,code_change/3
     ,handle_resource_response/2
     ,build_bridge_request/3
-    ,handle_dtmf/2
 ]).
 
 -export([add_request/1]).
@@ -187,8 +186,9 @@ handle_resource_response(JObj, Props) ->
             CallUpdate = whapps_call:kvs_store('relay_amqp_pid', self(), CallPreUpdate),
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
-            gen_listener:add_responder(Srv, {?MODULE, 'handle_dtmf'}, [{<<"*">>, <<"*">>}]),
-            get_number(Srv, CallId, CallUpdate);
+            gen_listener:add_responder(Srv, {'cccp_handlers', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
+            {'num_to_dial', Number} = get_number(CallUpdate),
+            gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             lager:debug("Got channel destroy, retrying..."),
             gen_listener:cast(Srv, 'wait');
@@ -302,10 +302,7 @@ create_request(State) ->
               ],
     Request.
 
-handle_dtmf(JObj, Props) ->
-    cccp_util:relay_amqp(JObj, Props).
-
-get_number(Srv, CallId, Call) ->
+get_number(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
        {ok,<<>>} ->
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
@@ -313,13 +310,7 @@ get_number(Srv, CallId, Call) ->
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(EnteredNumber),
            lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-        %   Call1 = whapps_call:set_account_id(AccountId, Call),
-        %   Call2 = case ForceCID of
-        %               'false' -> Call1;
-        %               _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
-        %           end,
-        %   lager:info("Outbound Call: ~p", [Call2]),
-           gen_listener:cast(Srv, {'parked', CallId, cccp_util:truncate_plus(Number)});
+           {'num_to_dial', cccp_util:truncate_plus(Number)};
        _ ->
            lager:info("No Phone number obtained."),
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
