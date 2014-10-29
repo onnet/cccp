@@ -56,7 +56,37 @@ handle_config_change(_JObj, _Props) ->
     
 handle_callinfo(JObj, Props) ->
     lager:debug("handle_callinfo JObj: ~p", [JObj]),
-    relay_amqp(JObj, Props).
+    relay_amqp(JObj, Props),
+    case is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
+        true ->
+            {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+            whapps_call_command:queued_hangup(Call);
+        _ -> ok
+    end.
+            
+relay_amqp(JObj, _Props) ->
+    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+    RouteWinPid = whapps_call:kvs_fetch('relay_amqp_pid', Call),
+    case is_pid(RouteWinPid) of
+        true ->
+            whapps_call_command:relay_event(RouteWinPid, JObj);
+        _ ->
+            'ok'
+    end.
+
+truncate_plus(Number) ->
+    case Number of
+        <<$+, PluslessNumber/binary>> ->
+            PluslessNumber;
+        PluslessNumber ->
+            PluslessNumber
+    end.
+
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
 handle_cccp_call(Call) ->
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
@@ -176,23 +206,5 @@ check_pin(Pin)->
         E ->
             lager:info("Auth by Pin failed for ~p. Error occurred: ~p.", [Pin, E]),
             'unauthorized'
-    end.
-
-relay_amqp(JObj, _Props) ->
-    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
-    RouteWinPid = whapps_call:kvs_fetch('relay_amqp_pid', Call),
-    case is_pid(RouteWinPid) of
-        true ->
-            whapps_call_command:relay_event(RouteWinPid, JObj);
-        _ ->
-            'ok'
-    end.
-
-truncate_plus(Number) ->
-    case Number of
-        <<$+, PluslessNumber/binary>> ->
-            PluslessNumber;
-        PluslessNumber ->
-            PluslessNumber
     end.
 
