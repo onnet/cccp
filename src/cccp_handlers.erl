@@ -55,14 +55,18 @@ handle_config_change(_JObj, _Props) ->
     'ok'.
     
 handle_callinfo(JObj, Props) ->
-    lager:debug("handle_callinfo JObj: ~p", [JObj]),
     relay_amqp(JObj, Props),
-    case is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
-        true ->
-            {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
-            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-            whapps_call_command:queued_hangup(Call);
-        _ -> ok
+    handle_disconnect(JObj).
+
+handle_disconnect(JObj) ->
+    case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj)) 
+          andalso 
+         is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
+            true ->
+                {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+                whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+                whapps_call_command:queued_hangup(Call);
+            _ -> ok
     end.
             
 relay_amqp(JObj, _Props) ->
