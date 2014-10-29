@@ -199,12 +199,13 @@ handle_resource_response(JObj, Props) ->
                 {<<"bridge">>, <<"SUCCESS">>} ->
                     lager:debug("Users bridged"),
                     gen_listener:cast(Srv, 'stop_callback');
-                _Ev -> lager:info("Unhandled event: ~p", [_Ev])
+                _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
+            lager:debug("Error occurred originate_resp: ~p", [JObj]), 
             gen_listener:cast(Srv, 'hangup_parked_call'),
             'ok';
-        _Ev -> lager:info("Unhandled event ~p", [_Ev])
+        _Ev -> lager:debug("Unhandled event2 ~p", [_Ev])
     end,
     'ok'.
 
@@ -240,7 +241,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec build_bridge_request(wh_json:object(), whapps_call:call(), ne_binary()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
-    [EPRes] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
+    [EPRes|_] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
     EP = [{[{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
             ,{<<"Callee-ID-Number">>, ToDID}
             ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
