@@ -311,7 +311,7 @@ get_number(Call) ->
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(EnteredNumber),
            lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           {'num_to_dial', cccp_util:truncate_plus(Number)};
+           {'num_to_dial', cccp_handlers:truncate_plus(Number)};
        _ ->
            lager:info("No Phone number obtained."),
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
