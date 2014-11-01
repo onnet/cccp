@@ -38,11 +38,10 @@ handle_route_win(JObj, Props) ->
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
     case whapps_call:retrieve(CallId, ?APP_NAME) of
         {'ok', Call} ->
-            Srv = props:get_value('server', Props),
             Call1 = whapps_call:kvs_store('consumer_pid', self(), whapps_call:from_route_win(JObj, Call)),
-            WonCall = whapps_call:kvs_store('server_pid', Srv, Call1),
-            whapps_call:cache(WonCall, ?APP_NAME),
-            handle_cccp_call(WonCall);
+            Call2 = whapps_call:kvs_store('server_pid', props:get_value('server', Props), Call1),
+            whapps_call:cache(Call2, ?APP_NAME),
+            handle_cccp_call(Call2);
         {'error', _R} ->
             lager:debug("Unable to find call record during route_win")
     end.
