@@ -127,7 +127,6 @@ handle_cast({'gen_listener',{'is_consuming', 'true'}}, #state{call=Call}=State) 
     Srv = whapps_call:kvs_fetch('server_pid', Call),
     gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
     gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"call_event">>, <<"*">>}]),
- %   gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"call_event">>, <<"DTMF">>}]),
     gen_listener:add_responder(Srv, {'cccp_util', 'handle_disconnect'}, [{<<"call_event">>, <<"CHANNEL_EXECUTE_COMPLETE">>}]),
     handle_call_to_platform(Call),
     {'noreply', State};
