@@ -174,6 +174,7 @@ handle_event(_JObj, _State) ->
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
+
     case {wh_json:get_value(<<"Event-Category">>, JObj)
           ,wh_json:get_value(<<"Event-Name">>, JObj)}
     of
@@ -183,10 +184,10 @@ handle_resource_response(JObj, Props) ->
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
             CallPreUpdate = whapps_call:from_route_req(JObj, Call),
-            CallUpdate = whapps_call:kvs_store('relay_amqp_pid', self(), CallPreUpdate),
+            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), CallPreUpdate),
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
-            gen_listener:add_responder(Srv, {'cccp_handlers', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
+            gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
             {'num_to_dial', Number} = get_number(CallUpdate),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
@@ -311,7 +312,7 @@ get_number(Call) ->
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(EnteredNumber),
            lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           {'num_to_dial', cccp_handlers:truncate_plus(Number)};
+           {'num_to_dial', cccp_util:truncate_plus(Number)};
        _ ->
            lager:info("No Phone number obtained."),
            whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
