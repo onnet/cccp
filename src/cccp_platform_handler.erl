@@ -20,7 +20,7 @@
          ,code_change/3
         ]).
 
--export([handle_call_to_platform/1
+-export([process_call_to_platform/1
         ,handle_all/2
         ]).
 
@@ -128,7 +128,7 @@ handle_cast({'gen_listener',{'is_consuming', 'true'}}, #state{call=Call}=State) 
     gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
     gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"call_event">>, <<"*">>}]),
     gen_listener:add_responder(Srv, {'cccp_util', 'handle_disconnect'}, [{<<"call_event">>, <<"CHANNEL_EXECUTE_COMPLETE">>}]),
-    handle_call_to_platform(Call),
+    process_call_to_platform(Call),
     {'noreply', State};
 handle_cast({'gen_listener', {'is_consuming', _IsConsuming}}, State) ->
     {'noreply', State};
@@ -197,7 +197,7 @@ handle_all(JObj, Props) ->
     lager:debug("handle_all JObj: ~p", [JObj]),
     lager:debug("handle_all Props: ~p", [Props]).
 
-handle_call_to_platform(Call) ->
+process_call_to_platform(Call) ->
     whapps_call_command:answer(Call),
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
     case cccp_util:cid_authorize(CID) of
