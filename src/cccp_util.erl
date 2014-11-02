@@ -5,6 +5,7 @@
         ,relay_amqp/2
         ,cid_authorize/1
         ,handle_disconnect/2
+        ,get_number/1
         ]).
 
 -include("cccp.hrl").
@@ -21,7 +22,15 @@ handle_callinfo(JObj, Props) ->
     relay_amqp(JObj, Props).
 
 relay_amqp(JObj, _Props) ->
-    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+    lager:info("relay_amqp JObj: ~p", [JObj]),
+    case whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME) of
+        {'ok', Call} ->
+            relay_event(JObj, Call);
+        _ ->
+            'ok'
+    end.
+
+relay_event(JObj, Call) ->
     RouteWinPid = whapps_call:kvs_fetch('consumer_pid', Call),
     case is_pid(RouteWinPid) of
         true ->
@@ -30,15 +39,37 @@ relay_amqp(JObj, _Props) ->
             'ok'
     end.
 
+
+
 handle_disconnect(JObj, _Props) ->
+    lager:info("handle_disconnect JObj: ~p", [JObj]),
+    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+    lager:info("handle_disconnect Call: ~p", [whapps_call:to_proplist(Call)]),
     case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj)) 
-          andalso 
+             andalso 
          is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
-            true ->
-                {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
-                whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-                whapps_call_command:queued_hangup(Call);
-            _ -> ok
+        'true' ->
+             case wh_json:get_value(<<"Disposition">>, JObj) of
+                'undefined' ->
+                    lager:info("handle_disconnect Undefined"),
+                    'ok';
+                <<"UNALLOCATED_NUMBER">> ->
+                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
+                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+                    whapps_call_command:queued_hangup(Call);
+                <<"INVALID_NUMBER_FORMAT">> ->
+                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
+                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+                    whapps_call_command:queued_hangup(Call);
+                <<"CALL_REJECTED">> ->
+                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
+                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+                    whapps_call_command:queued_hangup(Call);
+                Other ->
+                    lager:info("handle_disconnect Other: ~p", [Other]),
+                    whapps_call_command:queued_hangup(Call)
+             end;
+         _ -> 'ok'
     end.
 
 cid_authorize(CID) ->
@@ -58,3 +89,19 @@ cid_authorize(CID) ->
             lager:info("Auth by CID failed for ~p. Error occurred: ~p.", [CID, E]),
             'unauthorized'
     end.
+
+get_number(Call) ->
+    case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
+       {ok,<<>>} ->
+           whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:queued_hangup(Call);
+       {ok, EnteredNumber} ->
+           Number = wnm_util:to_e164(re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}])),
+           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+           {'num_to_dial', cccp_util:truncate_plus(Number)};
+       _ ->
+           lager:info("No Phone number obtained."),
+           whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+           whapps_call_command:queued_hangup(Call)
+     end.
+

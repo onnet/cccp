@@ -208,7 +208,7 @@ process_call_to_platform(Call) ->
     end.
 
 dial(AccountId, AccountCID, ForceCID, Call) ->
-    {'num_to_dial', Number} = get_number(Call),
+    {'num_to_dial', Number} = cccp_util:get_number(Call),
     EP = stepswitch_resources:endpoints(Number, wh_json:new()),
     Call1 = whapps_call:set_account_id(AccountId, Call),
     Call2 = case ForceCID of
@@ -255,19 +255,4 @@ check_pin(Pin)->
             lager:info("Auth by Pin failed for ~p. Error occurred: ~p.", [Pin, E]),
             'unauthorized'
     end.
-
-get_number(Call) ->
-    case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
-       {ok,<<>>} ->
-           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
-           whapps_call_command:hangup(Call);
-       {ok, EnteredNumber} ->
-           Number = wnm_util:to_e164(EnteredNumber),
-           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           {'num_to_dial', cccp_util:truncate_plus(Number)};
-       _ ->
-           lager:info("No Phone number obtained."),
-           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
-           whapps_call_command:hangup(Call)
-     end.
 

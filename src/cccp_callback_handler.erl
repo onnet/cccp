@@ -114,16 +114,28 @@ handle_cast('originate_park', State) ->
     {'noreply', State};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q = CtrlQ}};
-handle_cast('hangup_parked_call', State) ->
+handle_cast({'hangup_parked_call', ErrMsg}, State) ->
     lager:debug("hangup park"),
     ParkedCall = State#state.parked_call,
+            {'ok', Call} = whapps_call:retrieve(ParkedCall, ?APP_NAME),
+            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
+            whapps_call:cache(CallUpdate, ?APP_NAME),
+
     case ParkedCall =:= 'undefined' of
         'false' ->
-            Hangup = [{<<"Application-Name">>, <<"hangup">>}
-                      ,{<<"Insert-At">>, <<"now">>}
-                      ,{<<"Call-ID">>, ParkedCall}
-                      | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
-            wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
+            ErrObj = {[{<<"Event-Name">>, <<"CHANNEL_EXECUTE_COMPLETE">>} 
+                        ,{<<"Hangup-Code">>, <<"WhatEver">>}
+                        ,{<<"Disposition">>, ErrMsg}
+                        ,{<<"Call-ID">>, ParkedCall}
+                        ]},
+            Result = cccp_util:handle_disconnect(ErrObj, {[]}),
+            lager:info("Disconnect Result: ~p", [Result]);
+       %     Hangup = [{<<"Application-Name">>, <<"hangup">>}
+       %               ,{<<"Insert-At">>, <<"tail">>}
+       %           %    ,{<<"Insert-At">>, <<"now">>}
+       %               ,{<<"Call-ID">>, ParkedCall}
+       %               | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
+       %     wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
         'true' -> 'ok'
     end,
     {'noreply', State#state{parked_call = 'undefined'}};
@@ -173,6 +185,7 @@ handle_event(_JObj, _State) ->
 -spec handle_resource_response(wh_json:object(), proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
+    lager:info("Server Srv handle_resource_response: ~p", [Srv]),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
     case {wh_json:get_value(<<"Event-Category">>, JObj)
@@ -188,7 +201,7 @@ handle_resource_response(JObj, Props) ->
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
-            {'num_to_dial', Number} = get_number(CallUpdate),
+            {'num_to_dial', Number} = cccp_util:get_number(CallUpdate),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             lager:debug("Got channel destroy, retrying..."),
@@ -203,10 +216,11 @@ handle_resource_response(JObj, Props) ->
                 _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
-            lager:debug("Error occurred originate_resp: ~p", [JObj]), 
-            gen_listener:cast(Srv, 'hangup_parked_call'),
+            lager:debug("Error occurred originate_resp {<<'error'>>,<<'originate_resp'>>} JObj: ~p", [JObj]), 
+            lager:debug("Error occurred originate_resp {<<'error'>>,<<'originate_resp'>>} Props: ~p", [Props]), 
+            gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)}),
             'ok';
-        _Ev -> lager:debug("Unhandled event2 ~p", [_Ev])
+        _Ev -> lager:debug("Unhandled event2 ~p. JObj: ~p", [_Ev, JObj])
     end,
     'ok'.
 
@@ -270,6 +284,7 @@ originate_park(State) ->
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
     Srv = props:get_value('server', Props),
+    lager:info("Server Srv handle_originate_ready: ~p", [Srv]),
     case {wh_json:get_value(<<"Event-Category">>, JObj)
           ,wh_json:get_value(<<"Event-Name">>, JObj)}
     of
@@ -303,19 +318,4 @@ create_request(State) ->
                | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
               ],
     Request.
-
-get_number(Call) ->
-    case whapps_call_command:b_prompt_and_collect_digits(3, 12, <<"cf-enter_number">>, 3, Call) of
-       {ok,<<>>} ->
-           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
-           whapps_call_command:hangup(Call);
-       {ok, EnteredNumber} ->
-           Number = wnm_util:to_e164(EnteredNumber),
-           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           {'num_to_dial', cccp_util:truncate_plus(Number)};
-       _ ->
-           lager:info("No Phone number obtained."),
-           whapps_call_command:b_prompt(<<"hotdesk-invalid_entry">>, Call),
-           whapps_call_command:hangup(Call)
-     end.
 
