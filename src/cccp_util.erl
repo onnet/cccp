@@ -87,13 +87,19 @@ get_number(Call) ->
        {ok,<<>>} ->
            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:queued_hangup(Call);
+       {ok, <<"*1">>} ->
+           lager:debug("Last dialed number requested"),
+           get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
            Number = wnm_util:to_e164(re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}])),
-           lager:info("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+           lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
            {'num_to_dial', cccp_util:truncate_plus(Number)};
        _ ->
            lager:info("No Phone number obtained."),
            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:queued_hangup(Call)
-     end.
+    end.
 
+get_last_dialed_number(Call) ->
+    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+    whapps_call_command:queued_hangup(Call).
