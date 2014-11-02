@@ -1,7 +1,6 @@
 -module(cccp_util).
 
--export([truncate_plus/1
-        ,handle_callinfo/2
+-export([handle_callinfo/2
         ,relay_amqp/2
         ,cid_authorize/1
         ,handle_disconnect/2
@@ -9,14 +8,6 @@
         ]).
 
 -include("cccp.hrl").
-
-truncate_plus(Number) ->
-    case Number of
-        <<$+, PluslessNumber/binary>> ->
-            PluslessNumber;
-        PluslessNumber ->
-            PluslessNumber
-    end.
 
 handle_callinfo(JObj, Props) ->
     relay_amqp(JObj, Props).
@@ -84,18 +75,23 @@ cid_authorize(CID) ->
 
 get_number(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(2, 12, <<"cf-enter_number">>, 3, Call) of
-       {ok,<<>>} ->
-           whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-           whapps_call_command:queued_hangup(Call);
        {ok, <<"*1">>} ->
            lager:debug("Last dialed number requested"),
            get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
-           Number = wnm_util:to_e164(re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}])),
-           lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-           {'num_to_dial', cccp_util:truncate_plus(Number)};
-       _ ->
-           lager:info("No Phone number obtained."),
+           CleanedNumber = re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}]),
+           Number = re:replace(wnm_util:to_e164(CleanedNumber), "[^0-9]", "", [global, {return, 'binary'}]),
+           case wnm_util:is_reconcilable(Number) of
+               'true' ->
+                   lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+                   {'num_to_dial', Number};
+               _ ->
+                   lager:debug("Wrong number entered: ~p", [EnteredNumber]),
+                   whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+                   whapps_call_command:queued_hangup(Call)
+           end;
+       Err ->
+           lager:info("No Phone number obtained: ~p", [Err]),
            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:queued_hangup(Call)
     end.
