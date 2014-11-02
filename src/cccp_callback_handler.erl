@@ -114,7 +114,7 @@ handle_cast('originate_park', State) ->
     {'noreply', State};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q = CtrlQ}};
-handle_cast({'hangup_parked_call', ErrMsg}, State) ->
+handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
     lager:debug("hangup park"),
     ParkedCall = State#state.parked_call,
             {'ok', Call} = whapps_call:retrieve(ParkedCall, ?APP_NAME),
@@ -123,19 +123,19 @@ handle_cast({'hangup_parked_call', ErrMsg}, State) ->
 
     case ParkedCall =:= 'undefined' of
         'false' ->
-            ErrObj = {[{<<"Event-Name">>, <<"CHANNEL_EXECUTE_COMPLETE">>} 
-                        ,{<<"Hangup-Code">>, <<"WhatEver">>}
-                        ,{<<"Disposition">>, ErrMsg}
-                        ,{<<"Call-ID">>, ParkedCall}
-                        ]},
-            Result = cccp_util:handle_disconnect(ErrObj, {[]}),
-            lager:info("Disconnect Result: ~p", [Result]);
-       %     Hangup = [{<<"Application-Name">>, <<"hangup">>}
-       %               ,{<<"Insert-At">>, <<"tail">>}
-       %           %    ,{<<"Insert-At">>, <<"now">>}
-       %               ,{<<"Call-ID">>, ParkedCall}
-       %               | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
-       %     wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
+       %     ErrObj = {[{<<"Event-Name">>, <<"CHANNEL_EXECUTE_COMPLETE">>} 
+       %                 ,{<<"Hangup-Code">>, <<"WhatEver">>}
+       %                 ,{<<"Disposition">>, ErrMsg}
+       %                 ,{<<"Call-ID">>, ParkedCall}
+       %                 ]},
+       %     Result = cccp_util:handle_disconnect(ErrObj, {[]}),
+       %     lager:info("Disconnect Result: ~p", [Result]);
+            Hangup = [{<<"Application-Name">>, <<"hangup">>}
+                  %    ,{<<"Insert-At">>, <<"tail">>}
+                      ,{<<"Insert-At">>, <<"now">>}
+                      ,{<<"Call-ID">>, ParkedCall}
+                      | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
+            wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
         'true' -> 'ok'
     end,
     {'noreply', State#state{parked_call = 'undefined'}};
@@ -185,7 +185,6 @@ handle_event(_JObj, _State) ->
 -spec handle_resource_response(wh_json:object(), proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
-    lager:info("Server Srv handle_resource_response: ~p", [Srv]),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
     case {wh_json:get_value(<<"Event-Category">>, JObj)
@@ -216,8 +215,6 @@ handle_resource_response(JObj, Props) ->
                 _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
-            lager:debug("Error occurred originate_resp {<<'error'>>,<<'originate_resp'>>} JObj: ~p", [JObj]), 
-            lager:debug("Error occurred originate_resp {<<'error'>>,<<'originate_resp'>>} Props: ~p", [Props]), 
             gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)}),
             'ok';
         _Ev -> lager:debug("Unhandled event2 ~p. JObj: ~p", [_Ev, JObj])
@@ -284,7 +281,6 @@ originate_park(State) ->
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
     Srv = props:get_value('server', Props),
-    lager:info("Server Srv handle_originate_ready: ~p", [Srv]),
     case {wh_json:get_value(<<"Event-Category">>, JObj)
           ,wh_json:get_value(<<"Event-Name">>, JObj)}
     of

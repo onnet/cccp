@@ -22,7 +22,6 @@ handle_callinfo(JObj, Props) ->
     relay_amqp(JObj, Props).
 
 relay_amqp(JObj, _Props) ->
-    lager:info("relay_amqp JObj: ~p", [JObj]),
     case whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME) of
         {'ok', Call} ->
             relay_event(JObj, Call);
@@ -42,31 +41,24 @@ relay_event(JObj, Call) ->
 
 
 handle_disconnect(JObj, _Props) ->
-    lager:info("handle_disconnect JObj: ~p", [JObj]),
     {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
-    lager:info("handle_disconnect Call: ~p", [whapps_call:to_proplist(Call)]),
     case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj)) 
              andalso 
          is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
         'true' ->
              case wh_json:get_value(<<"Disposition">>, JObj) of
                 'undefined' ->
-                    lager:info("handle_disconnect Undefined"),
                     'ok';
                 <<"UNALLOCATED_NUMBER">> ->
-                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
                     whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
                     whapps_call_command:queued_hangup(Call);
                 <<"INVALID_NUMBER_FORMAT">> ->
-                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
                     whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
                     whapps_call_command:queued_hangup(Call);
                 <<"CALL_REJECTED">> ->
-                    lager:info("handle_disconnect UNALLOCATED_NUMBER"),
                     whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
                     whapps_call_command:queued_hangup(Call);
                 Other ->
-                    lager:info("handle_disconnect Other: ~p", [Other]),
                     whapps_call_command:queued_hangup(Call)
              end;
          _ -> 'ok'
