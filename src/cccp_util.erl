@@ -58,7 +58,7 @@ handle_disconnect(JObj, _Props) ->
                 <<"CALL_REJECTED">> ->
                     whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
                     whapps_call_command:queued_hangup(Call);
-                Other ->
+                _ ->
                     whapps_call_command:queued_hangup(Call)
              end;
          _ -> 'ok'
