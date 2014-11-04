@@ -2,7 +2,7 @@
 
 -export([handle_callinfo/2
         ,relay_amqp/2
-        ,cid_authorize/1
+        ,authorize/2
         ,handle_disconnect/2
         ,get_number/1
         ]).
@@ -55,22 +55,22 @@ handle_disconnect(JObj, _Props) ->
          _ -> 'ok'
     end.
 
-cid_authorize(CID) ->
-    ViewOptions = [{'key', CID}],
-    case couch_mgr:get_results(?CCCPS_DB, <<"cccps/cid_listing">>, ViewOptions) of
+authorize(Value, View) ->
+    ViewOptions = [{'key', Value}],
+    case couch_mgr:get_results(?CCCPS_DB, View, ViewOptions) of
         {ok,[]} ->
-            lager:info("Auth by CID failed for: ~p. No CID in Db.", [CID]),
-            'unauthorized';
+            lager:info("Auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
+            'false';
         {ok, [JObj]} ->
-            lager:info("CID ~p is authorized.", [JObj]),
+            lager:info("Value ~p is authorized.", [JObj]),
             [
              wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
              wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
              wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj)
             ];
         E ->
-            lager:info("Auth by CID failed for ~p. Error occurred: ~p.", [CID, E]),
-            'unauthorized'
+            lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, E]),
+            'false'
     end.
 
 get_number(Call) ->

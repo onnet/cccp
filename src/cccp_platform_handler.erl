@@ -200,11 +200,11 @@ handle_all(JObj, Props) ->
 process_call_to_platform(Call) ->
     whapps_call_command:answer(Call),
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
-    case cccp_util:cid_authorize(CID) of
+    case cccp_util:authorize(CID, <<"cccps/cid_listing">>) of
         [AccountId, AccountCID, ForceCID] ->
             dial(AccountId, AccountCID, ForceCID, Call);
         _ ->
-            pin_authorize(Call)
+            pin_collect(Call)
     end.
 
 dial(AccountId, AccountCID, ForceCID, Call) ->
@@ -217,14 +217,14 @@ dial(AccountId, AccountCID, ForceCID, Call) ->
     end,
     whapps_call_command:bridge(EP, Call2).
 
-pin_authorize(Call) ->
+pin_collect(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
        {ok,<<>>} ->
            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
            whapps_call_command:hangup(Call);
        {ok, EnteredPin} ->
            lager:info("Pin entered."),
-           case check_pin(EnteredPin) of
+           case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
                [AccountId, AccountCID, ForceCID] ->
                    dial(AccountId, AccountCID, ForceCID, Call);
                _ ->
@@ -237,22 +237,4 @@ pin_authorize(Call) ->
            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
            whapps_call_command:hangup(Call)
      end.
-
-check_pin(Pin)->
-    ViewOptions = [{'key', Pin}],
-    case couch_mgr:get_results(?CCCPS_DB, <<"cccps/pin_listing">>, ViewOptions) of
-        {ok,[]} ->
-            lager:info("Auth by Pin failed for: ~p. No Pin in Db.", [Pin]),
-            'unauthorized';
-        {ok, [JObj]} ->
-            lager:info("Pin ~p is authorized.", [JObj]),
-            [
-             wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
-             wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
-             wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj)
-            ];
-        E ->
-            lager:info("Auth by Pin failed for ~p. Error occurred: ~p.", [Pin, E]),
-            'unauthorized'
-    end.
 

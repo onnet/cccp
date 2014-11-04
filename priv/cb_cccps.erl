@@ -97,7 +97,16 @@ validate(Context, Id) ->
 validate_cccps(Context, ?HTTP_GET) ->
     summary(Context);
 validate_cccps(Context, ?HTTP_PUT) ->
-    create(Context).
+    case unique_creds(Context) of
+        'false' -> 
+            cb_context:add_validation_error(<<"mailbox">>
+                                                ,<<"unique">>
+                                                ,<<"Credentials already exists">>
+                                                ,Context
+                                               );
+        'true' ->
+            create(Context)
+    end.
 
 -spec validate_cccp(cb_context:context(), path_token(), http_method()) -> cb_context:context().
 validate_cccp(Context, Id, ?HTTP_GET) ->
@@ -204,3 +213,25 @@ on_successful_validation(Id, Context) ->
 -spec normalize_view_results(wh_json:object(), wh_json:objects()) -> wh_json:objects().
 normalize_view_results(JObj, Acc) ->
     [wh_json:get_value(<<"value">>, JObj)|Acc].
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Checks whether cid and pin are unique
+%% @end
+%%--------------------------------------------------------------------
+unique_creds(Context) ->
+    case unique_cid(Context) orelse unique_pin(Context) of
+        'true' -> 'false';
+        'false' -> 'true'
+    end.
+
+unique_cid(Context) ->
+    CID = wh_json:get_ne_value(<<"cid">>, cb_context:doc(Context), []),
+    cccp_util:authorize(CID, <<"cccps/cid_listing">>).
+
+unique_pin(Context) ->
+    Pin = wh_json:get_ne_value(<<"cid">>, cb_context:doc(Context), []),
+    cccp_util:authorize(Pin, <<"cccps/pin_listing">>).
+
+
