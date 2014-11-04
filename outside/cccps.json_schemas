@@ -3,27 +3,38 @@
    "id":"http://json-schema.org/draft-03/schema#",
    "description":"Calling cards callback platform user's info",
    "properties":{
+      "cid":{
+         "type":"string",
+         "required": false,
+         "description":"CID to authorize"
+      },
+      "pin":{
+         "type":"string",
+         "required": false,
+         "description":"PIN to authorize"
+      },
       "outbound_cid":{
          "type":"string",
+         "required": false,
          "description":"CID you would like to call out with"
       },
-      "force_outbound_cid":{
-         "description":"Flag to determine if the initial call has been detected",
-         "type":"boolean",
-         "default":true
+      "last_dialed":{
+         "type":"string",
+          "required": false,
+         "description":"Last dialed number"
       },
       "active":{
          "description":"Show's whether CID/PIN active",
          "type":"boolean",
          "default":false
       },
-      "cid":{
-         "type":"string",
-         "description":"CID to authorize"
-      },
-      "pin":{
-         "type":"string",
-         "description":"PIN to authorize"
+      "owner_id": {
+         "type": "string",
+         "required": false,
+         "name": "Owner ID",
+         "description": "The ID of the user object that 'owns' cid/pin",
+         "minLength": 32,
+         "maxLength": 32
       }
    }
 }
