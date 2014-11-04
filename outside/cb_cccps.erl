@@ -115,7 +115,9 @@ validate_cccp(Context, Id, ?HTTP_DELETE) ->
 %%--------------------------------------------------------------------
 -spec put(cb_context:context()) -> cb_context:context().
 put(Context) ->
-    crossbar_doc:save(Context).
+    lager:debug("cb_cccp Context to save: ~p", [Context]),
+    Context1 = crossbar_doc:save(Context),
+    lager:debug("cb_cccp Context1 saved: ~p", [Context1]).
 
 %%--------------------------------------------------------------------
 %% @public
