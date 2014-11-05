@@ -60,7 +60,7 @@ authorize(Value, View) ->
     case couch_mgr:get_results(?CCCPS_DB, View, ViewOptions) of
         {ok,[]} ->
             lager:info("Auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
-            'false';
+            'empty';   %%% don't change. used in cb_cccps.erl
         {ok, [JObj]} ->
             lager:info("Value ~p is authorized.", [JObj]),
             [
@@ -70,7 +70,7 @@ authorize(Value, View) ->
             ];
         E ->
             lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, E]),
-            'false'
+            'error'
     end.
 
 get_number(Call) ->

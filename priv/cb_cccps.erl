@@ -223,17 +223,19 @@ normalize_view_results(JObj, Acc) ->
 %% @end
 %%--------------------------------------------------------------------
 unique_creds(Context) ->
-    case unique_cid(Context) orelse unique_pin(Context) of
-        'true' -> 'false';
-        'false' -> 'true'
+    case ('empty' =:= unique_cid(Context)) 
+             andalso 
+         ('empty' =:= unique_pin(Context)) of
+            'true' -> 'true';
+            'false' -> 'false'
     end.
 
-unique_cid(Context) ->
-    CID = wh_json:get_ne_value(<<"cid">>, cb_context:doc(Context), []),
+unique_cid(#cb_context{req_data=ReqData}) ->
+    CID = wh_json:get_value(<<"cid">>, ReqData),
     cccp_util:authorize(CID, <<"cccps/cid_listing">>).
 
-unique_pin(Context) ->
-    Pin = wh_json:get_ne_value(<<"cid">>, cb_context:doc(Context), []),
+unique_pin(#cb_context{req_data=ReqData}) ->
+    Pin = wh_json:get_value(<<"pin">>, ReqData),
     cccp_util:authorize(Pin, <<"cccps/pin_listing">>).
 
 
