@@ -67,7 +67,7 @@ handle_cccp_call(Call) ->
 
 handle_callback(CallerNumber, Call) ->
     whapps_call_command:hangup(Call),
-    case cccp_util:cid_authorize(CallerNumber) of
+    case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, AccountCID, _ForceCID] ->
             JObj = {[{<<"Number">>, CallerNumber}
                     ,{<<"Account-ID">>, AccountId}

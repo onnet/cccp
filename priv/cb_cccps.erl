@@ -12,6 +12,7 @@
 -include("../crossbar.hrl").
 
 -define(CB_LIST, <<"cccps/crossbar_listing">>).
+-define(CCCPS_DB, <<"cccps">>).
 
 %%%===================================================================
 %%% API
@@ -148,7 +149,14 @@ post(Context, _) ->
 %%--------------------------------------------------------------------
 -spec delete(cb_context:context(), path_token()) -> cb_context:context().
 delete(Context, _) ->
-    crossbar_doc:delete(Context).
+    Context1 = crossbar_doc:delete(Context),
+    case cb_context:resp_status(Context1) of
+        'success' ->
+            _ = couch_mgr:del_doc(?CCCPS_DB, wh_json:get_value(<<"_id">>, cb_context:doc(Context1))),
+            Context1;
+        _ ->
+            Context1
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
