@@ -22,10 +22,13 @@ HOW-TO
 8. sup whistle_maintenance hotload cb_cccps
 9. sup crossbar_maintenance start_module cb_cccps
 10. sup whapps_controller start_app cccp
+
 11. Edit system_config db's cccp doc:
     "cccp_cb_number": "7123456789" - callback number
     "cccp_cc_number": "7098765432" - calling card dial-in number
+
 12. Add PIN for pin auth:
     curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"pin": "0192837465", "outbound_cid": "+0987654321", "active": true}}'
+
 13. Add CID for cid auth:
     curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"cid": "+1234567890", "outbound_cid": "+0987654321", "active": true}}'
