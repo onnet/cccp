@@ -125,7 +125,6 @@ validate_cccp(Context, Id, ?HTTP_DELETE) ->
 %%--------------------------------------------------------------------
 -spec put(cb_context:context()) -> cb_context:context().
 put(Context) ->
-    lager:debug("cb_cccp Context to save: ~p", [Context]),
     Context2 = crossbar_doc:save(Context),
     couch_mgr:ensure_saved(<<"cccps">>, cb_context:doc(Context2)),
     Context2.
@@ -139,7 +138,9 @@ put(Context) ->
 %%--------------------------------------------------------------------
 -spec post(cb_context:context(), path_token()) -> cb_context:context().
 post(Context, _) ->
-    crossbar_doc:save(Context).
+    Context2 = crossbar_doc:save(Context),
+    couch_mgr:ensure_saved(<<"cccps">>, cb_context:doc(Context2)),
+    Context2.
 
 %%--------------------------------------------------------------------
 %% @public
@@ -149,13 +150,13 @@ post(Context, _) ->
 %%--------------------------------------------------------------------
 -spec delete(cb_context:context(), path_token()) -> cb_context:context().
 delete(Context, _) ->
-    Context1 = crossbar_doc:delete(Context),
-    case cb_context:resp_status(Context1) of
+    Context2 = crossbar_doc:delete(Context),
+    case cb_context:resp_status(Context2) of
         'success' ->
-            _ = couch_mgr:del_doc(?CCCPS_DB, wh_json:get_value(<<"_id">>, cb_context:doc(Context1))),
-            Context1;
+            _ = couch_mgr:del_doc(?CCCPS_DB, wh_json:get_value(<<"_id">>, cb_context:doc(Context2))),
+            Context2;
         _ ->
-            Context1
+            Context2
     end.
 
 %%--------------------------------------------------------------------
