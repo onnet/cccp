@@ -72,6 +72,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
+    maybe_create_sysconfig_doc(),
     {'ok', #state{}}.
 
 %%--------------------------------------------------------------------
@@ -160,3 +161,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+maybe_create_sysconfig_doc() ->
+    _ = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>, <<"">>)),
+    _ = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>, <<"">>)).
