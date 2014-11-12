@@ -4,8 +4,7 @@ Calling Card Callback Platform
 
 Could be good for road warriors:
 
-- give a call to the customer as if you are calling from your office, i.e. hide behind your companie's CID
-  (Unlike to cf_disa, no callflows should be created at customer's accounts);
+- give a call to the customer as if you are calling from your office, i.e. hide your private phone number behind your companie's CID;
 
 - relay long distance calls expences to your company instead of your own using callback;
 
@@ -18,12 +17,17 @@ HOW-TO
 4. sh priv/copy_to_outside.sh
 5. cd /opt/kazoo
 6. make
-7. sup whapps_maintenance refresh
-8. sup whistle_maintenance hotload cb_cccps
-9. sup crossbar_maintenance start_module cb_cccps
-10. sup whapps_controller start_app cccp
+7. sup whapps_maintenance migrate
 
-11. Edit system_config db's cccp doc:
+8. reboot or mess with this:
+    - sup whistle_maintenance hotload cb_cccps;
+    - sup crossbar_maintenance start_module cb_cccps;
+    - whistle_apps@host 1> {ok, Path} = file:get_cwd().
+       {ok, "/path/to/2600hz/kazoo/scripts"}
+      whistle_apps@host 2> code:add_patha(filename:join([Path, "../applications/cccp/ebin"])).
+      whapps_controller:start_app(cccp).
+
+9. Edit system_config db's cccp doc:
     "cccp_cb_number": "7123456789" - callback number
     "cccp_cc_number": "7098765432" - calling card dial-in number
 
@@ -31,4 +35,4 @@ HOW-TO
     curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"pin": "0192837465", "outbound_cid": "+0987654321", "active": true}}'
 
 13. Add CID for cid auth:
-    curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"cid": "+1234567890", "outbound_cid": "+0987654321", "active": true}}'
+    curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"cid": "1234567890", "outbound_cid": "+0987654321", "active": true}}'
