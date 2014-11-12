@@ -22,10 +22,9 @@ HOW-TO
 8. reboot or mess with this:
     - sup whistle_maintenance hotload cb_cccps;
     - sup crossbar_maintenance start_module cb_cccps;
-    - whistle_apps@host 1> {ok, Path} = file:get_cwd().
-       {ok, "/path/to/2600hz/kazoo/scripts"}
-      whistle_apps@host 2> code:add_patha(filename:join([Path, "../applications/cccp/ebin"])).
-      whapps_controller:start_app(cccp).
+    - - whistle_apps@host 1> {ok, Path} = file:get_cwd().
+      - whistle_apps@host 2> code:add_patha(filename:join([Path, "../applications/cccp/ebin"])).
+      - whistle_apps@host 3> whapps_controller:start_app(cccp).
 
 9. Edit system_config db's cccp doc:
     "cccp_cb_number": "7123456789" - callback number
