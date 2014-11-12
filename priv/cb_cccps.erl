@@ -97,16 +97,13 @@ validate(Context, Id) ->
 -spec validate_cccps(cb_context:context(), http_method()) -> cb_context:context().
 validate_cccps(Context, ?HTTP_GET) ->
     summary(Context);
-validate_cccps(Context, ?HTTP_PUT) ->
-    case unique_creds(Context) of
-        'false' -> 
-            cb_context:add_validation_error(<<"mailbox">>
-                                                ,<<"unique">>
-                                                ,<<"Credentials already exists">>
-                                                ,Context
-                                               );
-        'true' ->
-            create(Context)
+validate_cccps(#cb_context{req_data=ReqData}=Context, ?HTTP_PUT) ->
+    CID = wh_json:get_value(<<"cid">>, ReqData),
+    case CID of
+        'undefined' ->
+            check_pin(Context);
+        _ ->
+            check_cid(Context)
     end.
 
 -spec validate_cccp(cb_context:context(), path_token(), http_method()) -> cb_context:context().
@@ -231,12 +228,37 @@ normalize_view_results(JObj, Acc) ->
 %% Checks whether cid and pin are unique
 %% @end
 %%--------------------------------------------------------------------
-unique_creds(Context) ->
-    case ('empty' =:= unique_cid(Context)) 
-             andalso 
-         ('empty' =:= unique_pin(Context)) of
-            'true' -> 'true';
-            'false' -> 'false'
+
+check_pin(Context) ->
+    case unique_pin(Context) of
+        'empty' -> create(Context);
+        _ ->
+            cb_context:add_validation_error(<<"cccp">>
+                                            ,<<"unique">>
+                                            ,<<"Pin already exists">>
+                                            ,Context)
+    end.
+
+check_cid(#cb_context{req_data=ReqData}=Context) ->
+    CID = wh_json:get_value(<<"cid">>, ReqData),
+    case wnm_util:is_reconcilable(CID) of
+        'false' -> 
+            cb_context:add_validation_error(<<"cccp">>
+                                            ,<<"unique">>
+                                            ,<<"Number is non reconcilable">>
+                                            ,Context);
+        'true' ->
+            ReqData2 = wh_json:set_value(<<"cid">>, wnm_util:normalize_number(CID), ReqData),
+            Context2 = Context#cb_context{req_data=ReqData2},
+            case unique_cid(Context2) of
+                'empty' -> create(Context2);
+                _ ->
+                    cb_context:add_validation_error(<<"cccp">>
+                                                ,<<"unique">>
+                                                ,<<"CID already exists">>
+                                                ,Context)
+            end
+
     end.
 
 unique_cid(#cb_context{req_data=ReqData}) ->
@@ -246,5 +268,4 @@ unique_cid(#cb_context{req_data=ReqData}) ->
 unique_pin(#cb_context{req_data=ReqData}) ->
     Pin = wh_json:get_value(<<"pin">>, ReqData),
     cccp_util:authorize(Pin, <<"cccps/pin_listing">>).
-
 
