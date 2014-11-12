@@ -19,7 +19,7 @@ HOW-TO
 6. make
 7. sup whapps_maintenance migrate
 
-8. reboot or mess with this:
+8. reboot or try to mess with this:
     - sup whistle_maintenance hotload cb_cccps;
     - sup crossbar_maintenance start_module cb_cccps;
     - /opt/kazoo/scripts/conn-to-apps.sh
