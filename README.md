@@ -22,6 +22,7 @@ HOW-TO
 8. reboot or mess with this:
     - sup whistle_maintenance hotload cb_cccps;
     - sup crossbar_maintenance start_module cb_cccps;
+    - /opt/kazoo/scripts/conn-to-apps.sh
       - whistle_apps@host 1> {ok, Path} = file:get_cwd().
       - whistle_apps@host 2> code:add_patha(filename:join([Path, "../applications/cccp/ebin"])).
       - whistle_apps@host 3> whapps_controller:start_app(cccp).
