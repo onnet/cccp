@@ -37,3 +37,8 @@ HOW-TO
 
 13. Add CID for cid auth:
     - curl -v -X PUT -H "X-Auth-Token: f8a68a3asdf3b6d9cd33se35ac634aae" https://your_kazoo_url:8443/v1/accounts/33caq229e4d85ew3423eb39e4ffe1452/cccps -d '{"data":{"cid": "1234567890", "outbound_cid": "+0987654321", "active": true}}'
+
+
+An example of CID/PIN administration:
+
+![Alt text](https://github.com/onnet/onnet/blob/84fe1d1941ff5d00b823800ae35c5b46f1c3bbe3/lib/images/callbackadmin.png "Telephony call recordings")
