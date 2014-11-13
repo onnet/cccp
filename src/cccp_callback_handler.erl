@@ -139,6 +139,12 @@ handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
         'true' -> 'ok'
     end,
     {'noreply', State#state{parked_call = 'undefined'}};
+handle_cast({'set_auth_doc_id', CallId}, State) ->
+    {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
+    CallUpdate = whapps_call:kvs_store('auth_doc_id', State#state.account_id, Call),
+    whapps_call:cache(CallUpdate, ?APP_NAME),
+    {'noreply', State};
+
 handle_cast({'parked', CallId, ToDID}, State) ->
     Req = build_bridge_request(CallId, ToDID, State),
     wapi_resource:publish_originate_req(Req),
@@ -195,8 +201,7 @@ handle_resource_response(JObj, Props) ->
             handle_originate_ready(ResResp, Props);
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
-            CallPreUpdate = whapps_call:from_route_req(JObj, Call),
-            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), CallPreUpdate),
+            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
@@ -212,6 +217,9 @@ handle_resource_response(JObj, Props) ->
                 {<<"bridge">>, <<"SUCCESS">>} ->
                     lager:debug("Users bridged"),
                     gen_listener:cast(Srv, 'stop_callback');
+                {<<"park">>, <<"SUCCESS">>} ->
+                    lager:debug("call parked"),
+                    gen_listener:cast(Srv, {'set_auth_doc_id', CallId});
                 _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
             end;
         {<<"error">>,<<"originate_resp">>} ->
