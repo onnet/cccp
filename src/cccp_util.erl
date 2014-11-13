@@ -5,6 +5,7 @@
         ,authorize/2
         ,handle_disconnect/2
         ,get_number/1
+        ,store_last_dialed/2
         ]).
 
 -include("cccp.hrl").
@@ -99,3 +100,9 @@ get_number(Call) ->
 get_last_dialed_number(Call) ->
     whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
     whapps_call_command:queued_hangup(Call).
+
+store_last_dialed(Number, DocId) ->
+    {'ok', Doc} = couch_mgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),
+    couch_mgr:update_doc(wh_json:get_value(<<"pvt_account_db">>, Doc), DocId, [{<<"pvt_last_dialed">>, Number}]).
+
+
