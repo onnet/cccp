@@ -67,7 +67,8 @@ authorize(Value, View) ->
             [
              wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
              wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
-             wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj)
+             wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj),
+             wh_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         E ->
             lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, E]),
@@ -98,8 +99,17 @@ get_number(Call) ->
     end.
 
 get_last_dialed_number(Call) ->
-    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-    whapps_call_command:queued_hangup(Call).
+    {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
+    DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
+    {'ok', Doc} = couch_mgr:open_doc(<<"cccps">>, DocId),
+    LastDialed = wh_json:get_value(<<"pvt_last_dialed">>, Doc),
+    case wnm_util:is_reconcilable(LastDialed) of
+       'false' -> 
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+            whapps_call_command:queued_hangup(Call);
+        'true' ->
+            {'num_to_dial', LastDialed}
+    end.
 
 store_last_dialed(Number, DocId) ->
     {'ok', Doc} = couch_mgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),

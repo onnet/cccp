@@ -68,10 +68,11 @@ handle_cccp_call(Call) ->
 handle_callback(CallerNumber, Call) ->
     whapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
-        [AccountId, AccountCID, _ForceCID] ->
+        [AccountId, AccountCID, _ForceCID, AuthDocId] ->
             JObj = {[{<<"Number">>, CallerNumber}
                     ,{<<"Account-ID">>, AccountId}
                     ,{<<"Outbound-Caller-ID-Number">>, AccountCID}
+                    ,{<<"Auth-Doc-Id">>, AuthDocId}
                    ]},
             timer:sleep(2000),
             cccp_callback_handler:add_request(JObj);

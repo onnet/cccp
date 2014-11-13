@@ -32,6 +32,7 @@
                 ,queue :: queue()
                 ,parked_call :: ne_binary()
                 ,offnet_ctl_q :: ne_binary()
+                ,auth_doc_id :: ne_binary()
                }).
 
 -define(MK_CALL_BINDING(CALLID), [{'callid', CALLID}, {'restrict_to', [<<"CHANNEL_DESTROY">>
@@ -68,12 +69,14 @@ init(JObj) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
     AccountCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
+    AuthDocId = wh_json:get_value(<<"Auth-Doc-Id">>, JObj),
 
     {'ok', #state{customer_number = CustomerNumber
                   ,account_id = AccountId
                   ,account_cid = AccountCID
                   ,stored_call = whapps_call:new()
                   ,queue = 'undefined'
+                  ,auth_doc_id = AuthDocId
                  }}.
 
 %%--------------------------------------------------------------------
@@ -141,13 +144,13 @@ handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
     {'noreply', State#state{parked_call = 'undefined'}};
 handle_cast({'set_auth_doc_id', CallId}, State) ->
     {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
-    CallUpdate = whapps_call:kvs_store('auth_doc_id', State#state.account_id, Call),
+    CallUpdate = whapps_call:kvs_store('auth_doc_id', State#state.auth_doc_id, Call),
     whapps_call:cache(CallUpdate, ?APP_NAME),
     {'noreply', State};
-
 handle_cast({'parked', CallId, ToDID}, State) ->
     Req = build_bridge_request(CallId, ToDID, State),
     wapi_resource:publish_originate_req(Req),
+    _ = spawn('cccp_util', 'store_last_dialed', [ToDID, State#state.auth_doc_id]),
     {'noreply', State#state{parked_call = CallId}};
 handle_cast('stop_callback', State) ->
     lager:debug("stopping"),
@@ -201,7 +204,8 @@ handle_resource_response(JObj, Props) ->
             handle_originate_ready(ResResp, Props);
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
-            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
+            CallPreUpdate = whapps_call:from_route_req(JObj, Call),
+            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), CallPreUpdate),
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
@@ -209,7 +213,9 @@ handle_resource_response(JObj, Props) ->
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             lager:debug("Got channel destroy, retrying..."),
-            gen_listener:cast(Srv, 'wait');
+    %        gen_listener:cast(Srv, 'stop_callback');
+            gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)});
+   %         gen_listener:cast(Srv, 'wait');
         {<<"resource">>,<<"originate_resp">>} ->
             case {wh_json:get_value(<<"Application-Name">>, JObj)
                   ,wh_json:get_value(<<"Application-Response">>, JObj)}
