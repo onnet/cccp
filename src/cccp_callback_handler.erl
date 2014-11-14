@@ -126,15 +126,7 @@ handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
 
     case ParkedCall =:= 'undefined' of
         'false' ->
-       %     ErrObj = {[{<<"Event-Name">>, <<"CHANNEL_EXECUTE_COMPLETE">>} 
-       %                 ,{<<"Hangup-Code">>, <<"WhatEver">>}
-       %                 ,{<<"Disposition">>, ErrMsg}
-       %                 ,{<<"Call-ID">>, ParkedCall}
-       %                 ]},
-       %     Result = cccp_util:handle_disconnect(ErrObj, {[]}),
-       %     lager:info("Disconnect Result: ~p", [Result]);
             Hangup = [{<<"Application-Name">>, <<"hangup">>}
-                  %    ,{<<"Insert-At">>, <<"tail">>}
                       ,{<<"Insert-At">>, <<"now">>}
                       ,{<<"Call-ID">>, ParkedCall}
                       | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
@@ -261,6 +253,24 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+originate_park(State) ->
+    wapi_offnet_resource:publish_req(create_request(State)).
+
+create_request(State) ->
+    CCVs = [{<<"Account-ID">>, State#state.account_id}],
+    Request = [{<<"Application-Name">>, <<"park">>}
+               ,{<<"Resource-Type">>, <<"originate">>}
+               ,{<<"Originate-Immediate">>, 'true'}
+               ,{<<"To-DID">>, State#state.customer_number}
+               ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
+               ,{<<"Progress-Timeout">>, 12}
+               ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
+               ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>]}
+               | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
+              ],
+    Request.
+
 -spec build_bridge_request(wh_json:object(), whapps_call:call(), ne_binary()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
@@ -286,9 +296,6 @@ build_bridge_request(CallId, ToDID, State) ->
         | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
     ]).
 
-originate_park(State) ->
-    wapi_offnet_resource:publish_req(create_request(State)).
-
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
     Srv = props:get_value('server', Props),
@@ -311,18 +318,4 @@ handle_originate_ready(JObj, Props) ->
         _Ev -> lager:info("unkown event: ~p", [_Ev])
     end,
     'ok'.
-
-create_request(State) ->
-    CCVs = [{<<"Account-ID">>, State#state.account_id}],
-    Request = [{<<"Application-Name">>, <<"park">>}
-               ,{<<"Resource-Type">>, <<"originate">>}
-               ,{<<"Originate-Immediate">>, 'true'}
-               ,{<<"To-DID">>, State#state.customer_number}
-               ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
-               ,{<<"Progress-Timeout">>, 12}
-               ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
-               ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>]}
-               | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
-              ],
-    Request.
 
