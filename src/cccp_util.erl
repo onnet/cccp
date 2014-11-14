@@ -134,6 +134,7 @@ check_restrictions(Number, Call) ->
                     whapps_call_command:queued_hangup(Call);
                 'false' ->
                     {'num_to_dial', Number}
+            end
     end.
 
 check_doc_for_restriction(Number, DocId, AccountDb) ->
