@@ -211,13 +211,13 @@ dial(AccountId, AccountCID, ForceCID, AuthDocId, Call) ->
     put_auth_doc_id(AuthDocId, whapps_call:call_id(Call)),
     {'num_to_dial', Number} = cccp_util:get_number(Call),
     _ = spawn('cccp_util', 'store_last_dialed', [Number, AuthDocId]),
-    EP = stepswitch_resources:endpoints(Number, wh_json:new()),
+    [EP|_] = stepswitch_resources:endpoints(Number, wh_json:new()),
     Call1 = whapps_call:set_account_id(AccountId, Call),
     Call2 = case ForceCID of
         'false' -> Call1;
          _ -> whapps_call:set_caller_id_number(AccountCID, Call1)
     end,
-    whapps_call_command:bridge(EP, Call2).
+    whapps_call_command:bridge([EP], Call2).
 
 pin_collect(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
