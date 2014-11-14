@@ -124,12 +124,14 @@ check_restrictions(Number, Call) ->
     AccountDb = wh_json:get_value(<<"pvt_account_db">>, Doc),
     case check_doc_for_restriction(Number, AccountId, AccountDb) of
        'true' ->
+            lager:debug("Number ~p is restricted", [Number]),
             whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
             whapps_call_command:queued_hangup(Call);
        'false' ->
             UserId = wh_json:get_value(<<"owner_id">>, Doc),
             case check_doc_for_restriction(Number, UserId, AccountDb) of
                 'true' ->
+                    lager:debug("Number ~p is restricted", [Number]),
                     whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
                     whapps_call_command:queued_hangup(Call);
                 'false' ->
