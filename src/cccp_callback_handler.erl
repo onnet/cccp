@@ -204,18 +204,15 @@ handle_resource_response(JObj, Props) ->
             handle_originate_ready(ResResp, Props);
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
-            CallPreUpdate = whapps_call:from_route_req(JObj, Call),
-            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), CallPreUpdate),
+            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             whapps_call:cache(CallUpdate, ?APP_NAME),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"*">>, <<"*">>}]),
             {'num_to_dial', Number} = cccp_util:get_number(CallUpdate),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
-            lager:debug("Got channel destroy, retrying..."),
-    %        gen_listener:cast(Srv, 'stop_callback');
-            gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)});
-   %         gen_listener:cast(Srv, 'wait');
+            lager:debug("Got channel destroy."),
+            gen_listener:cast(Srv, 'stop_callback');
         {<<"resource">>,<<"originate_resp">>} ->
             case {wh_json:get_value(<<"Application-Name">>, JObj)
                   ,wh_json:get_value(<<"Application-Response">>, JObj)}
