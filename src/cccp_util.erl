@@ -87,7 +87,7 @@ get_number(Call) ->
            case wnm_util:is_reconcilable(Number) of
                'true' ->
                    lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-                   {'num_to_dial', Number};
+                   check_restrictions(Number, Call);
                _ ->
                    lager:debug("Wrong number entered: ~p", [EnteredNumber]),
                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
@@ -109,11 +109,39 @@ get_last_dialed_number(Call) ->
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
             whapps_call_command:queued_hangup(Call);
         'true' ->
-            {'num_to_dial', LastDialed}
+            check_restrictions(LastDialed, Call)
     end.
 
 store_last_dialed(Number, DocId) ->
     {'ok', Doc} = couch_mgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),
     couch_mgr:update_doc(wh_json:get_value(<<"pvt_account_db">>, Doc), DocId, [{<<"pvt_last_dialed">>, Number}]).
 
+check_restrictions(Number, Call) ->
+    {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
+    DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
+    {'ok', Doc} = couch_mgr:open_doc(<<"cccps">>, DocId),
+    AccountId = wh_json:get_value(<<"pvt_account_id">>, Doc),
+    AccountDb = wh_json:get_value(<<"pvt_account_db">>, Doc),
+    case check_doc_for_restriction(Number, AccountId, AccountDb) of
+       'true' ->
+            whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
+            whapps_call_command:queued_hangup(Call);
+       'false' ->
+            UserId = wh_json:get_value(<<"owner_id">>, Doc),
+            case check_doc_for_restriction(Number, UserId, AccountDb) of
+                'true' ->
+                    whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
+                    whapps_call_command:queued_hangup(Call);
+                'false' ->
+                    {'num_to_dial', Number}
+    end.
+
+check_doc_for_restriction(Number, DocId, AccountDb) ->
+    case couch_mgr:open_cache_doc(AccountDb, DocId) of
+        {'error', _} -> 'false';
+        {'ok', JObj} ->
+            Classification = wnm_util:classify_number(Number),
+            lager:debug("classified number as ~p", [Classification]),
+            wh_json:get_value([<<"call_restriction">>, Classification, <<"action">>], JObj) =:= <<"deny">>
+    end.
 
