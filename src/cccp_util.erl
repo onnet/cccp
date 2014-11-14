@@ -76,8 +76,9 @@ authorize(Value, View) ->
     end.
 
 get_number(Call) ->
+    RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 
     case whapps_call_command:b_prompt_and_collect_digits(2, 12, <<"cf-enter_number">>, 3, Call) of
-       {ok, <<"*1">>} ->
+       {ok, RedialCode} ->
            lager:debug("Last dialed number requested"),
            get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
