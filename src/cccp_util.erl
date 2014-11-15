@@ -143,7 +143,7 @@ get_last_dialed_number(Call) ->
             check_restrictions(LastDialed, Call)
     end.
 
--spec(ne_binary(), ne_binary()) -> 'ok'.
+-spec store_last_dialed(ne_binary(), ne_binary()) -> 'ok'.
 store_last_dialed(Number, DocId) ->
     {'ok', Doc} = couch_mgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),
     _ = couch_mgr:update_doc(wh_json:get_value(<<"pvt_account_db">>, Doc), DocId, [{<<"pvt_last_dialed">>, Number}]),
