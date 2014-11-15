@@ -163,6 +163,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec maybe_create_sysconfig_doc() -> 'ok'.
 maybe_create_sysconfig_doc() ->
     _ = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>, <<"">>)),
-    _ = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>, <<"">>)).
+    _ = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>, <<"">>)),
+    'ok'.
