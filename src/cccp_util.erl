@@ -18,9 +18,11 @@
 
 -include("cccp.hrl").
 
+-spec handle_callinfo(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_callinfo(JObj, Props) ->
     relay_amqp(JObj, Props).
 
+-spec relay_amqp(wh_json:object(), wh_proplist()) -> 'ok'.
 relay_amqp(JObj, _Props) ->
     case whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME) of
         {'ok', Call} ->
@@ -29,6 +31,7 @@ relay_amqp(JObj, _Props) ->
             'ok'
     end.
 
+-spec relay_event(wh_json:object(), wh_proplist()) -> 'ok'.
 relay_event(JObj, Call) ->
     RouteWinPid = whapps_call:kvs_fetch('consumer_pid', Call),
     case is_pid(RouteWinPid) of
@@ -38,8 +41,7 @@ relay_event(JObj, Call) ->
             'ok'
     end.
 
-
-
+-spec handle_disconnect(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_disconnect(JObj, _Props) ->
     {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
     case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj)) 
@@ -64,6 +66,7 @@ handle_disconnect(JObj, _Props) ->
          _ -> 'ok'
     end.
 
+-spec authorize(ne_binary(), ne_binary()) -> {ok, list()} | 'empty' | 'error'.
 authorize(Value, View) ->
     ViewOptions = [{'key', Value}],
     case couch_mgr:get_results(?CCCPS_DB, View, ViewOptions) of
@@ -84,6 +87,7 @@ authorize(Value, View) ->
             'error'
     end.
 
+-spec legalize_outbound_cid(ne_binary(), ne_binary()) -> ne_binary().
 legalize_outbound_cid(OutboundCID, AccountId) ->
     case whapps_config:get_is_true(?CCCP_CONFIG_CAT, <<"ensure_valid_caller_id">>, 'true') of
         'true' ->
@@ -100,6 +104,7 @@ legalize_outbound_cid(OutboundCID, AccountId) ->
             OutboundCID
     end.
 
+-spec get_number(whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'.
 get_number(Call) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 
     case whapps_call_command:b_prompt_and_collect_digits(2, 12, <<"cf-enter_number">>, 3, Call) of
@@ -124,6 +129,7 @@ get_number(Call) ->
            whapps_call_command:queued_hangup(Call)
     end.
 
+-spec get_last_dialed_number(whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'.
 get_last_dialed_number(Call) ->
     {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
     DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
@@ -137,10 +143,13 @@ get_last_dialed_number(Call) ->
             check_restrictions(LastDialed, Call)
     end.
 
+-spec(ne_binary(), ne_binary()) -> 'ok'.
 store_last_dialed(Number, DocId) ->
     {'ok', Doc} = couch_mgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),
-    couch_mgr:update_doc(wh_json:get_value(<<"pvt_account_db">>, Doc), DocId, [{<<"pvt_last_dialed">>, Number}]).
+    _ = couch_mgr:update_doc(wh_json:get_value(<<"pvt_account_db">>, Doc), DocId, [{<<"pvt_last_dialed">>, Number}]),
+    'ok'.
 
+-spec check_restrictions(ne_binary(), whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'. 
 check_restrictions(Number, Call) ->
     {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
     DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
@@ -164,6 +173,7 @@ check_restrictions(Number, Call) ->
             end
     end.
 
+-spec check_doc_for_restriction(ne_binary(), ne_binary(), ne_binary()) -> boolean().
 check_doc_for_restriction(Number, DocId, AccountDb) ->
     case couch_mgr:open_cache_doc(AccountDb, DocId) of
         {'error', _} -> 'false';
