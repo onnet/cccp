@@ -22,7 +22,6 @@
         ]).
 
 -export([process_call_to_platform/1
-        ,handle_all/2
         ]).
 
 -include("cccp.hrl").
@@ -42,10 +41,7 @@
                    {'self', []}
                   ]).
 
--define(RESPONDERS, [{{?MODULE, 'handle_all'}
-                      ,[{<<"*">>, <<"*">>}]
-                     }
-                    ]).
+-define(RESPONDERS, []).
 
 -define(QUEUE_NAME, <<>>).
 -define(QUEUE_OPTIONS, []).
@@ -193,10 +189,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-handle_all(JObj, Props) ->
-    lager:debug("handle_all JObj: ~p", [JObj]),
-    lager:debug("handle_all Props: ~p", [Props]).
 
 process_call_to_platform(Call) ->
     whapps_call_command:answer(Call),
