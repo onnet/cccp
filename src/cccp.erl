@@ -75,8 +75,5 @@ declare_exchanges() ->
     wapi_self:declare_exchanges(),
     wapi_call:declare_exchanges(),
     wapi_route:declare_exchanges(),
-    wapi_callflow:declare_exchanges(),
-    wapi_offnet_resource:declare_exchanges(),
     wapi_resource:declare_exchanges(),
-    wapi_delegate:declare_exchanges(),
-    wapi_dialplan:declare_exchanges().
+    wapi_offnet_resource:declare_exchanges().
