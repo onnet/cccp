@@ -75,13 +75,15 @@ authorize(Value, View) ->
             [
              wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
              wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
-             wh_json:get_value([<<"value">>,<<"force_outbound_cid">>], JObj),
              wh_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         E ->
             lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, E]),
             'error'
     end.
+
+legalize_outbound_cid(JObj) ->
+    AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
 
 get_number(Call) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 

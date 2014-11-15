@@ -16,7 +16,7 @@ handle(_Data, Call) ->
     CallerIdNumber = whapps_call:caller_id_number(Call),
     whapps_call_command:b_hangup(Call),
     case cccp_util:callback_authorize(CallerIdNumber) of
-        [AccountId, AccountCID, _ForceCID] ->
+        [AccountId, AccountCID, _AuthDocId] ->
             lager:info("Caller information found for ~p. AccountId: ~p AccountCID: ~p", [CallerIdNumber, AccountId, AccountCID]),
             JObj = {[{<<"Number">>, CallerIdNumber}
                     ,{<<"Account-ID">>, AccountId}
