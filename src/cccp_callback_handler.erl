@@ -19,7 +19,7 @@
     ,terminate/2
     ,code_change/3
     ,handle_resource_response/2
-    ,build_bridge_request/3
+    ,handle_originate_ready/2
 ]).
 
 -export([add_request/1]).
@@ -35,6 +35,8 @@
                 ,offnet_ctl_q :: ne_binary()
                 ,auth_doc_id :: ne_binary()
                }).
+
+-type state() :: #state{}.
 
 -define(MK_CALL_BINDING(CALLID), [{'callid', CALLID}, {'restrict_to', [<<"CHANNEL_DESTROY">>
                                                                        ,<<"CHANNEL_ANSWER">>]}]).
@@ -66,6 +68,7 @@ start_link(Args) ->
                                       ,{'consume_options', ?CONSUME_OPTIONS}
                                      ], Args).
 
+-spec init([wh_json:object()]) -> {'ok', state()}.
 init(JObj) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
@@ -255,9 +258,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec originate_park(state()) -> 'ok'.
 originate_park(State) ->
     wapi_offnet_resource:publish_req(create_request(State)).
 
+-spec create_request(state()) -> wh_proplist().
 create_request(State) ->
     CCVs = [{<<"Account-ID">>, State#state.account_id}],
     Request = [{<<"Application-Name">>, <<"park">>}
@@ -272,7 +277,7 @@ create_request(State) ->
               ],
     Request.
 
--spec build_bridge_request(wh_json:object(), whapps_call:call(), ne_binary()) -> wh_proplist().
+-spec build_bridge_request(ne_binary(), ne_binary(), state()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
     [EPRes|_] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
