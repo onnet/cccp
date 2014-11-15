@@ -72,9 +72,11 @@ authorize(Value, View) ->
             'empty';   %%% don't change. used in cb_cccps.erl
         {ok, [JObj]} ->
             lager:info("Value ~p is authorized.", [JObj]),
+            AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
+            OutboundCID = wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
             [
-             wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
-             wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
+             AccountId,
+             legalize_outbound_cid(OutboundCID, AccountId),
              wh_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         E ->
@@ -82,8 +84,21 @@ authorize(Value, View) ->
             'error'
     end.
 
-legalize_outbound_cid(JObj) ->
-    AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
+legalize_outbound_cid(OutboundCID, AccountId) ->
+    case whapps_config:get_is_true(?CCCP_CONFIG_CAT, <<"ensure_valid_caller_id">>, 'true') of
+        'true' ->
+            {ok, AccountPhoneNumbersList} = couch_mgr:open_cache_doc(wh_util:format_account_id(AccountId, 'encoded'), <<"phone_numbers">>),
+            case lists:member(wnm_util:normalize_number(OutboundCID), wh_json:get_keys(AccountPhoneNumbersList)) of
+                'true' ->
+                   OutboundCID;
+                'false' ->
+                   DefaultCID = whapps_config:get(?CCCP_CONFIG_CAT, <<"default_caller_id_number">>, <<"00000000000">>),
+                   lager:debug("OutboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
+                   DefaultCID
+            end;
+        'false' ->
+            OutboundCID
+    end.
 
 get_number(Call) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 

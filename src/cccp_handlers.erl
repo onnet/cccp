@@ -84,8 +84,8 @@ handle_callback(CallerNumber, Call) ->
                    ]},
             timer:sleep(2000),
             cccp_callback_handler:add_request(JObj);
-        _ ->
-            lager:info("No caller information found for ~p. Won't call it back.", [CallerNumber]),
+        E ->
+            lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E]),
             'ok'
     end.
 
