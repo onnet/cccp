@@ -19,7 +19,6 @@
     ,terminate/2
     ,code_change/3
     ,handle_resource_response/2
-    ,handle_originate_ready/2
 ]).
 
 -export([add_request/1]).
