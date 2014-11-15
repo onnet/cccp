@@ -37,9 +37,7 @@
 
 
 %% By convention, we put the options here in macros, but not required.
--define(BINDINGS, [
-                   {'self', []}
-                  ]).
+-define(BINDINGS, [{'self', []}]).
 
 -define(RESPONDERS, []).
 
@@ -190,6 +188,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec process_call_to_platform(whapps_call:call()) -> 'ok'.
 process_call_to_platform(Call) ->
     whapps_call_command:answer(Call),
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
@@ -200,6 +199,7 @@ process_call_to_platform(Call) ->
             pin_collect(Call)
     end.
 
+-spec dial(ne_binary(), ne_binary(), ne_binary(), whapps_call:call()) -> 'ok'.
 dial(AccountId, OutboundCID, AuthDocId, Call) ->
     put_auth_doc_id(AuthDocId, whapps_call:call_id(Call)),
     {'num_to_dial', Number} = cccp_util:get_number(Call),
@@ -209,6 +209,7 @@ dial(AccountId, OutboundCID, AuthDocId, Call) ->
     Call2 = whapps_call:set_caller_id_number(OutboundCID, Call1),
     whapps_call_command:bridge([EP], Call2).
 
+-spec pin_collect(whapps_call:call()) -> 'ok'.
 pin_collect(Call) ->
     case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
        {ok,<<>>} ->
@@ -230,6 +231,7 @@ pin_collect(Call) ->
            whapps_call_command:hangup(Call)
      end.
 
+-spec put_auth_doc_id(ne_binary(), ne_binary()) -> 'ok'.
 put_auth_doc_id(AuthDocId, CallId) ->
     {'ok', CachedCall} = whapps_call:retrieve(CallId, ?APP_NAME),
     CallUpdate = whapps_call:kvs_store('auth_doc_id', AuthDocId, CachedCall),
