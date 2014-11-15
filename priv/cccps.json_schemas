@@ -18,17 +18,12 @@
          "required": false,
          "description":"CID you would like to call out with"
       },
-      "last_dialed":{
-         "type":"string",
-          "required": false,
-         "description":"Last dialed number"
-      },
       "active":{
          "description":"Show's whether CID/PIN active",
          "type":"boolean",
          "default":false
       },
-      "owner_id": {
+      "user_id": {
          "type": "string",
          "required": false,
          "name": "Owner ID",

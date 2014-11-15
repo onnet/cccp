@@ -1,9 +1,10 @@
 %%%-------------------------------------------------------------------
+%%% @copyright 
 %%% @doc
-%%%
 %%%
 %%% @end
 %%% @contributors
+%%%   OnNet (Kirill Sysoev github.com/onnet)
 %%%-------------------------------------------------------------------
 -module(cccp_callback_handler).
 

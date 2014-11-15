@@ -1,3 +1,11 @@
+%%%-------------------------------------------------------------------
+%%% @copyright 
+%%% @doc
+%%%
+%%% @end
+%%% @contributors
+%%%   OnNet (Kirill Sysoev github.com/onnet)
+%%%-------------------------------------------------------------------
 -module(cccp_util).
 
 -export([handle_callinfo/2
@@ -128,7 +136,7 @@ check_restrictions(Number, Call) ->
             whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
             whapps_call_command:queued_hangup(Call);
        'false' ->
-            UserId = wh_json:get_value(<<"owner_id">>, Doc),
+            UserId = wh_json:get_value(<<"user_id">>, Doc),
             case check_doc_for_restriction(Number, UserId, AccountDb) of
                 'true' ->
                     lager:debug("Number ~p is restricted", [Number]),

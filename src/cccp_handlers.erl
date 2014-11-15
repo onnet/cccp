@@ -1,3 +1,11 @@
+%%%-------------------------------------------------------------------
+%%% @copyright 
+%%% @doc
+%%%
+%%% @end
+%%% @contributors
+%%%   OnNet (Kirill Sysoev github.com/onnet)
+%%%-------------------------------------------------------------------
 -module(cccp_handlers).
 
 -export([handle_route_req/2
