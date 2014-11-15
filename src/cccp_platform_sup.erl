@@ -38,7 +38,7 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 -spec new(whapps_call:call()) -> sup_startchild_ret().
-new(Call) -> supervisor:start_child(?MODULE, Call).
+new(Call) -> supervisor:start_child(?MODULE, [Call]).
 
 %%%===================================================================
 %%% Supervisor callbacks
