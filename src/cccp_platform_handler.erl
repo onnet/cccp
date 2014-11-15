@@ -202,19 +202,19 @@ process_call_to_platform(Call) ->
     whapps_call_command:answer(Call),
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
     case cccp_util:authorize(CID, <<"cccps/cid_listing">>) of
-        [AccountId, AccountCID, AuthDocId] ->
-            dial(AccountId, AccountCID, AuthDocId, Call);
+        [AccountId, OutboundCID, AuthDocId] ->
+            dial(AccountId, OutboundCID, AuthDocId, Call);
         _ ->
             pin_collect(Call)
     end.
 
-dial(AccountId, AccountCID, AuthDocId, Call) ->
+dial(AccountId, OutboundCID, AuthDocId, Call) ->
     put_auth_doc_id(AuthDocId, whapps_call:call_id(Call)),
     {'num_to_dial', Number} = cccp_util:get_number(Call),
     _ = spawn('cccp_util', 'store_last_dialed', [Number, AuthDocId]),
     [EP|_] = stepswitch_resources:endpoints(Number, wh_json:new()),
     Call1 = whapps_call:set_account_id(AccountId, Call),
-    Call2 = whapps_call:set_caller_id_number(AccountCID, Call1),
+    Call2 = whapps_call:set_caller_id_number(OutboundCID, Call1),
     whapps_call_command:bridge([EP], Call2).
 
 pin_collect(Call) ->
@@ -225,8 +225,8 @@ pin_collect(Call) ->
        {ok, EnteredPin} ->
            lager:info("Pin entered."),
            case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
-               [AccountId, AccountCID, AuthDocId] ->
-                   dial(AccountId, AccountCID, AuthDocId, Call);
+               [AccountId, OutboundCID, AuthDocId] ->
+                   dial(AccountId, OutboundCID, AuthDocId, Call);
                _ ->
                    lager:info("Wrong Pin entered."),
                    whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),

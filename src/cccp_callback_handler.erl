@@ -69,12 +69,12 @@ start_link(Args) ->
 init(JObj) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
-    AccountCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
+    OutboundCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
     AuthDocId = wh_json:get_value(<<"Auth-Doc-Id">>, JObj),
 
     {'ok', #state{customer_number = CustomerNumber
                   ,account_id = AccountId
-                  ,account_cid = AccountCID
+                  ,account_cid = OutboundCID
                   ,stored_call = whapps_call:new()
                   ,queue = 'undefined'
                   ,auth_doc_id = AuthDocId

@@ -16,11 +16,11 @@ handle(_Data, Call) ->
     CallerIdNumber = whapps_call:caller_id_number(Call),
     whapps_call_command:b_hangup(Call),
     case cccp_util:callback_authorize(CallerIdNumber) of
-        [AccountId, AccountCID, _AuthDocId] ->
-            lager:info("Caller information found for ~p. AccountId: ~p AccountCID: ~p", [CallerIdNumber, AccountId, AccountCID]),
+        [AccountId, OutboundCID, _AuthDocId] ->
+            lager:info("Caller information found for ~p. AccountId: ~p OutboundCID: ~p", [CallerIdNumber, AccountId, OutboundCID]),
             JObj = {[{<<"Number">>, CallerIdNumber}
                     ,{<<"Account-ID">>, AccountId}
-                    ,{<<"Outbound-Caller-ID-Number">>, AccountCID}
+                    ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
                    ]},
             cccp_callback_handler:add_request(JObj);
         _ -> 
