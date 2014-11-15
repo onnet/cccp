@@ -40,6 +40,7 @@ handle_route_req(JObj, Props) ->
           'ok'
     end.
 
+-spec handle_route_win(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_route_win(JObj, Props) ->
     lager:info("CCCP has received a route win, taking control of the call"),
     'true' = wapi_route:win_v(JObj),
@@ -54,6 +55,7 @@ handle_route_win(JObj, Props) ->
             lager:debug("Unable to find call record during route_win")
     end.
 
+-spec handle_config_change(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_config_change(_JObj, _Props) ->
     'ok'.
     
@@ -61,6 +63,7 @@ handle_config_change(_JObj, _Props) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec handle_cccp_call(whapps_call:call()) -> 'ok'.
 handle_cccp_call(Call) ->
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
     ReqNum = wnm_util:normalize_number(whapps_call:request_user(Call)),
@@ -73,6 +76,7 @@ handle_cccp_call(Call) ->
             cccp_platform_sup:new(Call)
     end.
 
+-spec handle_callback(ne_binary(), whapps_call:call()) -> 'ok'.
 handle_callback(CallerNumber, Call) ->
     whapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
