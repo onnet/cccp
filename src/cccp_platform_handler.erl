@@ -10,7 +10,9 @@
 
 -behaviour(gen_listener).
 
--export([start_link/1]).
+-export([start_link/1
+         ,process_call_to_platform/1
+]).
 
 -export([init/1
          ,handle_call/3
@@ -19,9 +21,6 @@
          ,handle_event/2
          ,terminate/2
          ,code_change/3
-        ]).
-
--export([process_call_to_platform/1
         ]).
 
 -include("cccp.hrl").

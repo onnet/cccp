@@ -10,18 +10,18 @@
 
 -behaviour(gen_listener).
 
--export([start_link/1]).
--export([init/1
-    ,handle_call/3
-    ,handle_cast/2
-    ,handle_info/2
-    ,handle_event/2
-    ,terminate/2
-    ,code_change/3
-    ,handle_resource_response/2
+-export([start_link/1
+         ,handle_resource_response/2
+         ,add_request/1
 ]).
-
--export([add_request/1]).
+-export([init/1
+         ,handle_call/3
+         ,handle_cast/2
+         ,handle_info/2
+         ,handle_event/2
+         ,terminate/2
+         ,code_change/3
+]).
 
 -include("cccp.hrl").
 
@@ -37,7 +37,7 @@
 
 -type state() :: #state{}.
 
--define(MK_CALL_BINDING(CALLID), [{'callid', CALLID}, {'restrict_to', [<<"CHANNEL_DESTROY">>
+-define(MK_CALL_BINDING(CallId), [{'callid', CallId}, {'restrict_to', [<<"CHANNEL_DESTROY">>
                                                                        ,<<"CHANNEL_ANSWER">>]}]).
 
 -define(BINDINGS, [{'self', []}
