@@ -117,21 +117,17 @@ handle_cast('originate_park', State) ->
     {'noreply', State};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q = CtrlQ}};
-handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
-    ParkedCallId = State#state.parked_call_id,
-            {'ok', Call} = whapps_call:retrieve(ParkedCallId, ?APP_NAME),
-            CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
-            whapps_call:cache(CallUpdate, ?APP_NAME),
-
-    case ParkedCallId =:= 'undefined' of
-        'false' ->
-            Hangup = [{<<"Application-Name">>, <<"hangup">>}
-                      ,{<<"Insert-At">>, <<"now">>}
-                      ,{<<"Call-ID">>, ParkedCallId}
-                      | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
-            wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
-        'true' -> 'ok'
-    end,
+handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id='undefined'}=State) ->
+    {'noreply', State};
+handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId}=State) ->
+    {'ok', Call} = whapps_call:retrieve(ParkedCallId, ?APP_NAME),
+    CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
+    whapps_call:cache(CallUpdate, ?APP_NAME),
+    Hangup = [{<<"Application-Name">>, <<"hangup">>}
+             ,{<<"Insert-At">>, <<"now">>}
+             ,{<<"Call-ID">>, ParkedCallId}
+             | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
+    wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup)),
     {'noreply', State#state{parked_call_id = 'undefined'}};
 handle_cast({'set_auth_doc_id', CallId}, State) ->
     {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
@@ -148,7 +144,7 @@ handle_cast('stop_callback', State) ->
 handle_cast(_Msg, State) ->
     {'noreply', State}.
 
--spec add_request(wh_json:object()) -> 'ok'.
+-spec add_request(wh_json:object()) -> sup_startchild_ret().
 add_request(JObj) ->
     cccp_callback_sup:new(JObj).
 
@@ -177,13 +173,14 @@ handle_event(_JObj, _State) ->
     {'reply', []}.
 
 
--spec handle_resource_response(wh_json:object(), proplist()) -> 'ok'.
+-spec handle_resource_response(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
     case {wh_json:get_value(<<"Event-Category">>, JObj)
-          ,wh_json:get_value(<<"Event-Name">>, JObj)}
+          ,wh_json:get_value(<<"Event-Name">>, JObj)
+         }
     of
         {<<"resource">>, <<"offnet_resp">>} ->
             ResResp = wh_json:get_value(<<"Resource-Response">>, JObj),
@@ -268,19 +265,19 @@ create_request(State) ->
 build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
     [EPRes|_] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
-    EP = [{[{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
-            ,{<<"Callee-ID-Number">>, ToDID}
-            ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
-            ,{<<"To-DID">>, ToDID}
-            ,{<<"Invite-Format">>,<<"route">>}
-            ,{<<"Caller-ID-Type">>,<<"external">>}
-            ,{<<"Account-ID">>, State#state.account_id}
-            ,{<<"Endpoint-Type">>,<<"sip">>}
-         ]}],
+    EP = wh_json:from_list([{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
+                           ,{<<"Callee-ID-Number">>, ToDID}
+                           ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
+                           ,{<<"To-DID">>, ToDID}
+                           ,{<<"Invite-Format">>,<<"route">>}
+                           ,{<<"Caller-ID-Type">>,<<"external">>}
+                           ,{<<"Account-ID">>, State#state.account_id}
+                           ,{<<"Endpoint-Type">>,<<"sip">>}
+                           ]),
     props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
         ,{<<"Application-Name">>, <<"bridge">>}
         ,{<<"Existing-Call-ID">>, CallId}
-        ,{<<"Endpoints">>, EP}
+        ,{<<"Endpoints">>, [EP]}
         ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
         ,{<<"Originate-Immediate">>, 'false'}
         ,{<<"Msg-ID">>, MsgId}
