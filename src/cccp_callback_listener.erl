@@ -6,7 +6,7 @@
 %%% @contributors
 %%%   OnNet (Kirill Sysoev github.com/onnet)
 %%%-------------------------------------------------------------------
--module(cccp_callback_handler).
+-module(cccp_callback_listener).
 
 -behaviour(gen_listener).
 
@@ -30,7 +30,7 @@
                 ,account_cid :: ne_binary()
                 ,stored_call :: whapps_call:call()
                 ,queue :: queue()
-                ,parked_call :: ne_binary()
+                ,parked_call_id :: ne_binary()
                 ,offnet_ctl_q :: ne_binary()
                 ,auth_doc_id :: ne_binary()
                }).
@@ -97,7 +97,6 @@ init(JObj) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
-    lager:debug("unhandled request from ~p: ~p", [_From, _Request]),
     {'reply', {'error', 'not_implemented'}, State}.
 
 %%--------------------------------------------------------------------
@@ -111,32 +110,29 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({'gen_listener', {'created_queue', Q}}, #state{queue = 'undefined'} = S) ->
-    lager:info("making originate request"),
     gen_listener:cast(self(), 'originate_park'),
     {'noreply', S#state{queue = Q}};
 handle_cast('originate_park', State) ->
-    lager:debug("originate park"),
     originate_park(State),
     {'noreply', State};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q = CtrlQ}};
 handle_cast({'hangup_parked_call', _ErrMsg}, State) ->
-    lager:debug("hangup park"),
-    ParkedCall = State#state.parked_call,
-            {'ok', Call} = whapps_call:retrieve(ParkedCall, ?APP_NAME),
+    ParkedCallId = State#state.parked_call_id,
+            {'ok', Call} = whapps_call:retrieve(ParkedCallId, ?APP_NAME),
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             whapps_call:cache(CallUpdate, ?APP_NAME),
 
-    case ParkedCall =:= 'undefined' of
+    case ParkedCallId =:= 'undefined' of
         'false' ->
             Hangup = [{<<"Application-Name">>, <<"hangup">>}
                       ,{<<"Insert-At">>, <<"now">>}
-                      ,{<<"Call-ID">>, ParkedCall}
+                      ,{<<"Call-ID">>, ParkedCallId}
                       | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
             wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup));
         'true' -> 'ok'
     end,
-    {'noreply', State#state{parked_call = 'undefined'}};
+    {'noreply', State#state{parked_call_id = 'undefined'}};
 handle_cast({'set_auth_doc_id', CallId}, State) ->
     {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
     CallUpdate = whapps_call:kvs_store('auth_doc_id', State#state.auth_doc_id, Call),
@@ -146,18 +142,14 @@ handle_cast({'parked', CallId, ToDID}, State) ->
     Req = build_bridge_request(CallId, ToDID, State),
     wapi_resource:publish_originate_req(Req),
     _ = spawn('cccp_util', 'store_last_dialed', [ToDID, State#state.auth_doc_id]),
-    {'noreply', State#state{parked_call = CallId}};
+    {'noreply', State#state{parked_call_id = CallId}};
 handle_cast('stop_callback', State) ->
-    lager:debug("stopping"),
     {'stop', 'normal', State};
 handle_cast(_Msg, State) ->
-    lager:debug("unhandled cast: ~p", [_Msg]),
     {'noreply', State}.
 
 -spec add_request(wh_json:object()) -> 'ok'.
 add_request(JObj) ->
-    CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
-    lager:info("adding offnet request to ~s", [CustomerNumber]),
     cccp_callback_sup:new(JObj).
 
 %%--------------------------------------------------------------------
@@ -171,7 +163,6 @@ add_request(JObj) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(_Info, State) ->
-    lager:debug("unhandled msg: ~p", [_Info]),
     {'noreply', State}.
 
 %%--------------------------------------------------------------------
@@ -206,17 +197,14 @@ handle_resource_response(JObj, Props) ->
             {'num_to_dial', Number} = cccp_util:get_number(CallUpdate),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
-            lager:debug("Got channel destroy."),
             gen_listener:cast(Srv, 'stop_callback');
         {<<"resource">>,<<"originate_resp">>} ->
             case {wh_json:get_value(<<"Application-Name">>, JObj)
                   ,wh_json:get_value(<<"Application-Response">>, JObj)}
             of
                 {<<"bridge">>, <<"SUCCESS">>} ->
-                    lager:debug("Users bridged"),
                     gen_listener:cast(Srv, 'stop_callback');
                 {<<"park">>, <<"SUCCESS">>} ->
-                    lager:debug("call parked"),
                     gen_listener:cast(Srv, {'set_auth_doc_id', CallId});
                 _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
             end;

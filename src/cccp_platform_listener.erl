@@ -6,7 +6,7 @@
 %%% @contributors
 %%%   OnNet (Kirill Sysoev github.com/onnet)
 %%%-------------------------------------------------------------------
--module(cccp_platform_handler).
+-module(cccp_platform_listener).
 
 -behaviour(gen_listener).
 
