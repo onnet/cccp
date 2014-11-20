@@ -48,7 +48,7 @@ handle_disconnect(JObj, _Props) ->
              andalso 
          is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
         'true' ->
-             case wh_json:get_value(<<"Hangup-Cause">>, JObj) of
+             case wh_json:get_value(<<"Disposition">>, JObj) of
                 'undefined' ->
                     'ok';
                 <<"UNALLOCATED_NUMBER">> ->
