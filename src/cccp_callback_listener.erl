@@ -136,7 +136,7 @@ handle_cast({'set_auth_doc_id', CallId}, State) ->
     {'noreply', State};
 handle_cast({'parked', CallId, ToDID}, State) ->
     Req = build_bridge_request(CallId, ToDID, State),
-    wapi_resource:publish_originate_req(Req),
+    wapi_offnet_resource:publish_req(Req),
     _ = spawn('cccp_util', 'store_last_dialed', [ToDID, State#state.auth_doc_id]),
     {'noreply', State#state{parked_call_id = CallId}};
 handle_cast('stop_callback', State) ->
@@ -264,25 +264,16 @@ create_request(State) ->
 -spec build_bridge_request(ne_binary(), ne_binary(), state()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
-    [EPRes|_] = stepswitch_resources:endpoints(ToDID, wh_json:new()),
-    EP = wh_json:from_list([{<<"Route">>, wh_json:get_value(<<"Route">>, EPRes)}
-                           ,{<<"Callee-ID-Number">>, ToDID}
-                           ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
-                           ,{<<"To-DID">>, ToDID}
-                           ,{<<"Invite-Format">>,<<"route">>}
-                           ,{<<"Caller-ID-Type">>,<<"external">>}
-                           ,{<<"Account-ID">>, State#state.account_id}
-                           ,{<<"Endpoint-Type">>,<<"sip">>}
-                           ]),
     props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
         ,{<<"Application-Name">>, <<"bridge">>}
-        ,{<<"Existing-Call-ID">>, CallId}
-        ,{<<"Endpoints">>, [EP]}
+        ,{<<"Call-ID">>, CallId}
+        ,{<<"Control-Queue">>, State#state.offnet_ctl_q}
+        ,{<<"To-DID">>, ToDID}
+        ,{<<"Resource-Type">>, <<"originate">>}
         ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
-        ,{<<"Originate-Immediate">>, 'false'}
+        ,{<<"Originate-Immediate">>, 'true'}
         ,{<<"Msg-ID">>, MsgId}
         ,{<<"Account-ID">>, State#state.account_id}
-        ,{<<"Timeout">>, 10000}
         | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
     ]).
 
