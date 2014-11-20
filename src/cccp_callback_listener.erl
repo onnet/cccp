@@ -262,7 +262,6 @@ create_request(State) ->
 
 -spec build_bridge_request(ne_binary(), ne_binary(), state()) -> wh_proplist().
 build_bridge_request(CallId, ToDID, State) ->
-    MsgId = wh_util:rand_hex_binary(6),
     props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
         ,{<<"Application-Name">>, <<"bridge">>}
         ,{<<"Existing-Call-ID">>, CallId}
@@ -272,7 +271,7 @@ build_bridge_request(CallId, ToDID, State) ->
         ,{<<"Resource-Type">>, <<"originate">>}
         ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
         ,{<<"Originate-Immediate">>, 'true'}
-        ,{<<"Msg-ID">>, MsgId}
+        ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
         ,{<<"Account-ID">>, State#state.account_id}
         | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
     ]).
