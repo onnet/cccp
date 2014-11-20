@@ -20,25 +20,26 @@ handle_route_req(JObj, Props) ->
     'true' = wapi_route:req_v(JObj),
 
     Call = whapps_call:from_route_req(JObj),
-
-    ReqNum = wnm_util:normalize_number(whapps_call:request_user(Call)),
     CB_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>)),
     CC_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>)),
 
-    case lists:member(ReqNum, [CB_Number, CC_Number]) of 
-      true ->
-          Q = props:get_value('queue', Props),
-          Resp = props:filter_undefined([{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
-                                         ,{<<"Method">>, <<"park">>}
-                                         | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
-                                        ]),
-          ServerId = wh_json:get_value(<<"Server-ID">>, JObj),
-          Publisher = fun(P) -> wapi_route:publish_resp(ServerId, P) end,
-          whapps_util:amqp_pool_send(Resp, Publisher),
-          whapps_call:cache(Call, ?APP_NAME);
-       _ ->
-          'ok'
+    case wnm_util:normalize_number(whapps_call:request_user(Call)) of
+        CB_Number -> park_call(JObj, Props, Call);
+        CC_Number -> park_call(JObj, Props, Call);
+        _ -> 'ok'
     end.
+
+-spec park_call(wh_json:object(), wh_proplist(), whapps_call:call()) -> 'ok'.
+park_call(JObj, Props, Call) ->
+    Q = props:get_value('queue', Props),
+    Resp = props:filter_undefined([{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
+                                  ,{<<"Method">>, <<"park">>}
+                                   | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
+                                  ]),
+    ServerId = wh_json:get_value(<<"Server-ID">>, JObj),
+    Publisher = fun(P) -> wapi_route:publish_resp(ServerId, P) end,
+    whapps_util:amqp_pool_send(Resp, Publisher),
+    whapps_call:cache(Call, ?APP_NAME).
 
 -spec handle_route_win(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_route_win(JObj, Props) ->
