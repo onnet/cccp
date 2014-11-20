@@ -120,9 +120,6 @@ handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
 handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id='undefined'}=State) ->
     {'noreply', State};
 handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId}=State) ->
-    {'ok', Call} = whapps_call:retrieve(ParkedCallId, ?APP_NAME),
-    CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
-    whapps_call:cache(CallUpdate, ?APP_NAME),
     Hangup = [{<<"Application-Name">>, <<"hangup">>}
              ,{<<"Insert-At">>, <<"now">>}
              ,{<<"Call-ID">>, ParkedCallId}
@@ -195,6 +192,8 @@ handle_resource_response(JObj, Props) ->
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             gen_listener:cast(Srv, 'stop_callback');
+        {<<"call_event">>,<<"CHANNEL_EXECUTE_COMPLETE">>} ->
+            cccp_util:handle_disconnect(JObj, Props);
         {<<"resource">>,<<"originate_resp">>} ->
             case {wh_json:get_value(<<"Application-Name">>, JObj)
                   ,wh_json:get_value(<<"Application-Response">>, JObj)}
@@ -203,7 +202,7 @@ handle_resource_response(JObj, Props) ->
                     gen_listener:cast(Srv, 'stop_callback');
                 {<<"park">>, <<"SUCCESS">>} ->
                     gen_listener:cast(Srv, {'set_auth_doc_id', CallId});
-                _Ev -> lager:debug("Unhandled event: ~p", [_Ev])
+                _Ev -> lager:debug("Unhandled event ~p. JObj: ~p", [_Ev, JObj])
             end;
         {<<"error">>,<<"originate_resp">>} ->
             gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)}),
@@ -266,6 +265,7 @@ build_bridge_request(CallId, ToDID, State) ->
     MsgId = wh_util:rand_hex_binary(6),
     props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
         ,{<<"Application-Name">>, <<"bridge">>}
+        ,{<<"Existing-Call-ID">>, CallId}
         ,{<<"Call-ID">>, CallId}
         ,{<<"Control-Queue">>, State#state.offnet_ctl_q}
         ,{<<"To-DID">>, ToDID}
