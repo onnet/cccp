@@ -67,10 +67,9 @@ handle_config_change(_JObj, _Props) ->
 -spec handle_cccp_call(whapps_call:call()) -> 'ok'.
 handle_cccp_call(Call) ->
     CID = wnm_util:normalize_number(whapps_call:caller_id_number(Call)),
-    ReqNum = wnm_util:normalize_number(whapps_call:request_user(Call)),
     CB_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>)),
     CC_Number = wnm_util:normalize_number(whapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>)),
-    case ReqNum of
+    case wnm_util:normalize_number(whapps_call:request_user(Call)) of
         CB_Number ->
             handle_callback(CID, Call);
         CC_Number ->
