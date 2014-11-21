@@ -34,12 +34,9 @@ relay_amqp(JObj, _Props) ->
 
 -spec relay_event(wh_json:object(), wh_proplist()) -> 'ok'.
 relay_event(JObj, Call) ->
-    RouteWinPid = whapps_call:kvs_fetch('consumer_pid', Call),
-    case is_pid(RouteWinPid) of
-        true ->
-            whapps_call_command:relay_event(RouteWinPid, JObj);
-        _ ->
-            'ok'
+    case whapps_call:kvs_fetch('consumer_pid', Call) of
+        Pid when is_pid(Pid) -> whapps_call_command:relay_event(Pid, JObj);
+        _ -> 'ok'
     end.
 
 -spec handle_disconnect(wh_json:object(), wh_proplist()) -> 'ok'.
