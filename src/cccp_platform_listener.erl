@@ -217,10 +217,14 @@ dial(AccountId, OutboundCID, AuthDocId, Call) ->
 
 -spec pin_collect(whapps_call:call()) -> 'ok'.
 pin_collect(Call) ->
+    pin_collect(Call, 3).
+pin_collect(Call, 0) ->
+    whapps_call_command:hangup(Call);
+pin_collect(Call, Retries) ->
     case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
        {ok,<<>>} ->
            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-           whapps_call_command:hangup(Call);
+           pin_collect(Call, Retries - 1);
        {ok, EnteredPin} ->
            lager:info("Pin entered."),
            case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
@@ -229,12 +233,12 @@ pin_collect(Call) ->
                _ ->
                    lager:info("Wrong Pin entered."),
                    whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-                   whapps_call_command:hangup(Call)
+                   pin_collect(Call, Retries - 1)
            end;
        _ ->
            lager:info("No pin entered."),
            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-           whapps_call_command:hangup(Call)
+           pin_collect(Call, Retries - 1)
      end.
 
 -spec put_auth_doc_id(ne_binary(), ne_binary()) -> 'ok'.
