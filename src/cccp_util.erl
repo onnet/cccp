@@ -82,10 +82,9 @@ authorize(Value, View) ->
             lager:info("Value ~p is authorized.", [JObj]),
             AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
             OutboundCID = wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
-            [
-             AccountId,
-             legalize_outbound_cid(OutboundCID, AccountId),
-             wh_json:get_value([<<"value">>,<<"id">>], JObj)
+            [AccountId
+             ,legalize_outbound_cid(OutboundCID, AccountId)
+             ,wh_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         E ->
             lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, E]),
@@ -95,18 +94,20 @@ authorize(Value, View) ->
 -spec legalize_outbound_cid(ne_binary(), ne_binary()) -> ne_binary().
 legalize_outbound_cid(OutboundCID, AccountId) ->
     case whapps_config:get_is_true(?CCCP_CONFIG_CAT, <<"ensure_valid_caller_id">>, 'true') of
+        'true' -> ensure_valid_caller_id(OutboundCID, AccountId);
+        'false' -> OutboundCID
+    end.
+
+-spec ensure_valid_caller_id(ne_binary(), ne_binary()) -> ne_binary().
+ensure_valid_caller_id(OutboundCID, AccountId) ->
+    {ok, AccountPhoneNumbersList} = couch_mgr:open_cache_doc(wh_util:format_account_id(AccountId, 'encoded'), <<"phone_numbers">>),
+    case lists:member(wnm_util:normalize_number(OutboundCID), wh_json:get_keys(AccountPhoneNumbersList)) of
         'true' ->
-            {ok, AccountPhoneNumbersList} = couch_mgr:open_cache_doc(wh_util:format_account_id(AccountId, 'encoded'), <<"phone_numbers">>),
-            case lists:member(wnm_util:normalize_number(OutboundCID), wh_json:get_keys(AccountPhoneNumbersList)) of
-                'true' ->
-                   OutboundCID;
-                'false' ->
-                   DefaultCID = whapps_config:get(?CCCP_CONFIG_CAT, <<"default_caller_id_number">>, <<"00000000000">>),
-                   lager:debug("OutboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
-                   DefaultCID
-            end;
+            OutboundCID;
         'false' ->
-            OutboundCID
+            DefaultCID = whapps_config:get(?CCCP_CONFIG_CAT, <<"default_caller_id_number">>, <<"00000000000">>),
+            lager:debug("OutboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
+            DefaultCID
     end.
 
 -spec get_number(whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'.
@@ -117,21 +118,25 @@ get_number(Call) ->
            lager:debug("Last dialed number requested"),
            get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
-           CleanedNumber = re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}]),
-           Number = re:replace(wnm_util:to_e164(CleanedNumber), "[^0-9]", "", [global, {return, 'binary'}]),
-           case wnm_util:is_reconcilable(Number) of
-               'true' ->
-                   lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
-                   check_restrictions(Number, Call);
-               _ ->
-                   lager:debug("Wrong number entered: ~p", [EnteredNumber]),
-                   whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-                   whapps_call_command:queued_hangup(Call)
-           end;
+           verify_entered_number(EnteredNumber, Call);
        Err ->
            lager:info("No Phone number obtained: ~p", [Err]),
            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
            whapps_call_command:queued_hangup(Call)
+    end.
+
+-spec verify_entered_number(ne_binary(), whapps_call:call()) -> 'ok'.
+verify_entered_number(EnteredNumber, Call) ->
+    CleanedNumber = re:replace(EnteredNumber, "[^0-9]", "", [global, {return, 'binary'}]),
+    Number = re:replace(wnm_util:to_e164(CleanedNumber), "[^0-9]", "", [global, {return, 'binary'}]),
+    case wnm_util:is_reconcilable(Number) of
+        'true' ->
+            lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
+            check_restrictions(Number, Call);
+        _ ->
+            lager:debug("Wrong number entered: ~p", [EnteredNumber]),
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+            whapps_call_command:queued_hangup(Call)
     end.
 
 -spec get_last_dialed_number(whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'.
