@@ -14,6 +14,7 @@
         ,handle_disconnect/2
         ,get_number/1
         ,store_last_dialed/2
+        ,build_bridge_request/6
         ]).
 
 -include("cccp.hrl").
@@ -185,4 +186,20 @@ check_doc_for_restriction(Number, DocId, AccountDb) ->
             lager:debug("classified number as ~p", [Classification]),
             wh_json:get_value([<<"call_restriction">>, Classification, <<"action">>], JObj) =:= <<"deny">>
     end.
+
+-spec build_bridge_request(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> wh_proplist().
+build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
+    props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
+        ,{<<"Application-Name">>, <<"bridge">>}
+        ,{<<"Existing-Call-ID">>, CallId}
+        ,{<<"Call-ID">>, CallId}
+        ,{<<"Control-Queue">>, CtrlQ}
+        ,{<<"To-DID">>, ToDID}
+        ,{<<"Resource-Type">>, <<"originate">>}
+        ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
+        ,{<<"Originate-Immediate">>, 'true'}
+        ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
+        ,{<<"Account-ID">>, AccountId}
+        | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
+    ]).
 

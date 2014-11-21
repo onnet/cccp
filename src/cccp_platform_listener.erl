@@ -208,13 +208,12 @@ process_call_to_platform(Call) ->
 
 -spec dial(ne_binary(), ne_binary(), ne_binary(), whapps_call:call()) -> 'ok'.
 dial(AccountId, OutboundCID, AuthDocId, Call) ->
-    put_auth_doc_id(AuthDocId, whapps_call:call_id(Call)),
-    {'num_to_dial', Number} = cccp_util:get_number(Call),
-    _ = spawn('cccp_util', 'store_last_dialed', [Number, AuthDocId]),
-    [EP|_] = stepswitch_resources:endpoints(Number, wh_json:new()),
-    Call1 = whapps_call:set_account_id(AccountId, Call),
-    Call2 = whapps_call:set_caller_id_number(OutboundCID, Call1),
-    whapps_call_command:bridge([EP], Call2).
+    CallId = whapps_call:call_id(Call),
+    put_auth_doc_id(AuthDocId, CallId),
+    {'num_to_dial', ToDID} = cccp_util:get_number(Call),
+    _ = spawn('cccp_util', 'store_last_dialed', [ToDID, AuthDocId]),
+    Req = cccp_util:build_bridge_request(CallId, ToDID, <<>>, whapps_call:control_queue(Call), AccountId, OutboundCID),
+    wapi_offnet_resource:publish_req(Req).
 
 -spec pin_collect(whapps_call:call()) -> 'ok'.
 pin_collect(Call) ->

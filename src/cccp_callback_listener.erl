@@ -132,7 +132,7 @@ handle_cast({'set_auth_doc_id', CallId}, State) ->
     whapps_call:cache(CallUpdate, ?APP_NAME),
     {'noreply', State};
 handle_cast({'parked', CallId, ToDID}, State) ->
-    Req = build_bridge_request(CallId, ToDID, State),
+    Req = cccp_util:build_bridge_request(CallId, ToDID, State#state.queue, State#state.offnet_ctl_q, State#state.account_id, State#state.account_cid),
     wapi_offnet_resource:publish_req(Req),
     _ = spawn('cccp_util', 'store_last_dialed', [ToDID, State#state.auth_doc_id]),
     {'noreply', State#state{parked_call_id = CallId}};
@@ -259,22 +259,6 @@ create_request(State) ->
                | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
               ],
     Request.
-
--spec build_bridge_request(ne_binary(), ne_binary(), state()) -> wh_proplist().
-build_bridge_request(CallId, ToDID, State) ->
-    props:filter_undefined([{<<"Resource-Type">>, <<"audio">>}
-        ,{<<"Application-Name">>, <<"bridge">>}
-        ,{<<"Existing-Call-ID">>, CallId}
-        ,{<<"Call-ID">>, CallId}
-        ,{<<"Control-Queue">>, State#state.offnet_ctl_q}
-        ,{<<"To-DID">>, ToDID}
-        ,{<<"Resource-Type">>, <<"originate">>}
-        ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
-        ,{<<"Originate-Immediate">>, 'true'}
-        ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
-        ,{<<"Account-ID">>, State#state.account_id}
-        | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
-    ]).
 
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
