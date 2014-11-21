@@ -41,30 +41,34 @@ relay_event(JObj, Call) ->
 
 -spec handle_disconnect(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_disconnect(JObj, _Props) ->
-    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
     case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj)) 
-             andalso 
+         andalso 
          is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj)) of
-        'true' ->
-             case wh_json:get_value(<<"Disposition">>, JObj) of
-                'undefined' ->
-                    'ok';
-                <<"UNALLOCATED_NUMBER">> ->
-                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),  %%% don't know if it is needed
-                    whapps_call_command:queued_hangup(Call);                        %%% we can setup different prompt
-                <<"INVALID_NUMBER_FORMAT">> ->                                      %%% for different hangup cause 
-                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),  
-                    whapps_call_command:queued_hangup(Call);
-                <<"CALL_REJECTED">> ->
-                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-                    whapps_call_command:queued_hangup(Call);
-                <<"USER_BUSY">> ->
-                    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-                    whapps_call_command:queued_hangup(Call);
-                _ ->
-                    whapps_call_command:queued_hangup(Call)
-             end;
-         'false' -> 'ok'
+            'true' -> handle_disconnect_cause(JObj);
+            'false' -> 'ok'
+    end.
+
+-spec handle_disconnect_cause(wh_json:object()) -> 'ok'.
+handle_disconnect_cause(JObj) ->
+    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+    case wh_json:get_value(<<"Disposition">>, JObj) of
+        'undefined' ->
+            'ok';
+        <<"UNALLOCATED_NUMBER">> ->
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),  %%% don't feel if it is needed
+            whapps_call_command:queued_hangup(Call);                        %%% we can setup different prompt
+        <<"INVALID_NUMBER_FORMAT">> ->                                      %%% for different hangup cause 
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),  
+            whapps_call_command:queued_hangup(Call);
+        <<"CALL_REJECTED">> ->
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+            whapps_call_command:queued_hangup(Call);
+        <<"USER_BUSY">> ->
+            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+            whapps_call_command:queued_hangup(Call);
+        UnhandledCause ->
+            lager:debug("Unhandled disconnect cause: ~p", [UnhandledCause]),
+            whapps_call_command:queued_hangup(Call)
     end.
 
 -spec authorize(ne_binary(), ne_binary()) -> {ok, list()} | 'empty' | 'error'.
