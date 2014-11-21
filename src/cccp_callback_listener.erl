@@ -202,12 +202,12 @@ handle_resource_response(JObj, Props) ->
                     gen_listener:cast(Srv, 'stop_callback');
                 {<<"park">>, <<"SUCCESS">>} ->
                     gen_listener:cast(Srv, {'set_auth_doc_id', CallId});
-                _Ev -> lager:debug("Unhandled event ~p. JObj: ~p", [_Ev, JObj])
+                _ -> 'ok'
             end;
         {<<"error">>,<<"originate_resp">>} ->
             gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)}),
             'ok';
-        _Ev -> lager:debug("Unhandled event2 ~p. JObj: ~p", [_Ev, JObj])
+        _ -> 'ok'
     end,
     'ok'.
 
@@ -279,7 +279,7 @@ handle_originate_ready(JObj, Props) ->
             gen_listener:cast(Srv, {'offnet_ctl_queue', CtrlQ}),
             gen_listener:add_binding(Srv, {'call', ?MK_CALL_BINDING(CallId)}),
             wapi_dialplan:publish_originate_execute(Q, Prop);
-        _Ev -> lager:info("unkown event: ~p", [_Ev])
+        _ -> 'ok'
     end,
     'ok'.
 

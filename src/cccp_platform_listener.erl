@@ -226,7 +226,6 @@ pin_collect(Call, Retries) ->
            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
            pin_collect(Call, Retries - 1);
        {ok, EnteredPin} ->
-           lager:info("Pin entered."),
            case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
                [AccountId, OutboundCID, AuthDocId] ->
                    dial(AccountId, OutboundCID, AuthDocId, Call);

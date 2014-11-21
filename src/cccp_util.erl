@@ -79,7 +79,6 @@ authorize(Value, View) ->
             lager:info("Auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
             'empty';   %%% don't change. used in cb_cccps.erl
         {ok, [JObj]} ->
-            lager:info("Value ~p is authorized.", [JObj]),
             AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
             OutboundCID = wh_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
             [AccountId
@@ -115,7 +114,6 @@ get_number(Call) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 
     case whapps_call_command:b_prompt_and_collect_digits(2, 12, <<"cf-enter_number">>, 3, Call) of
        {ok, RedialCode} ->
-           lager:debug("Last dialed number requested"),
            get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
            verify_entered_number(EnteredNumber, Call);
@@ -131,7 +129,6 @@ verify_entered_number(EnteredNumber, Call) ->
     Number = re:replace(wnm_util:to_e164(CleanedNumber), "[^0-9]", "", [global, {return, 'binary'}]),
     case wnm_util:is_reconcilable(Number) of
         'true' ->
-            lager:debug("Phone number entered: ~p. Normalized number: ~p", [EnteredNumber, Number]),
             check_restrictions(Number, Call);
         _ ->
             lager:debug("Wrong number entered: ~p", [EnteredNumber]),
@@ -189,7 +186,6 @@ check_doc_for_restriction(Number, DocId, AccountDb) ->
         {'error', _} -> 'false';
         {'ok', JObj} ->
             Classification = wnm_util:classify_number(Number),
-            lager:debug("classified number as ~p", [Classification]),
             wh_json:get_value([<<"call_restriction">>, Classification, <<"action">>], JObj) =:= <<"deny">>
     end.
 
