@@ -121,9 +121,9 @@ handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id='undefined'}=
 handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId ,queue=Q ,offnet_ctl_q=CtrlQ}=State) ->
     hangup_parked_call(ParkedCallId, Q, CtrlQ),
     {'noreply', State#state{parked_call_id = 'undefined'}};
-handle_cast({'set_auth_doc_id', CallId}, State) ->
+handle_cast({'set_auth_doc_id', CallId}, #state{auth_doc_id=AuthDocId}=State) ->
     {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
-    CallUpdate = whapps_call:kvs_store('auth_doc_id', State#state.auth_doc_id, Call),
+    CallUpdate = whapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
     whapps_call:cache(CallUpdate, ?APP_NAME),
     {'noreply', State};
 handle_cast({'parked', CallId, ToDID}, State) ->
@@ -230,17 +230,17 @@ originate_park(State) ->
     wapi_offnet_resource:publish_req(create_request(State)).
 
 -spec create_request(state()) -> wh_proplist().
-create_request(State) ->
-    CCVs = [{<<"Account-ID">>, State#state.account_id}],
+create_request(#state{account_id=AccountId, customer_number=ToDID, account_cid=AccountCID, queue=Q}) ->
+    CCVs = [{<<"Account-ID">>, AccountId}],
     Request = [{<<"Application-Name">>, <<"park">>}
                ,{<<"Resource-Type">>, <<"originate">>}
                ,{<<"Originate-Immediate">>, 'true'}
-               ,{<<"To-DID">>, State#state.customer_number}
-               ,{<<"Outbound-Caller-ID-Number">>, State#state.account_cid}
+               ,{<<"To-DID">>, ToDID}
+               ,{<<"Outbound-Caller-ID-Number">>, AccountCID}
                ,{<<"Progress-Timeout">>, 12}
                ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
                ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>]}
-               | wh_api:default_headers(State#state.queue, ?APP_NAME, ?APP_VERSION)
+               | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
               ],
     Request.
 
@@ -277,5 +277,4 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q, offnet_ctl_q=CtrlQ, a
     Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
     wapi_offnet_resource:publish_req(Req),
     _ = spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId]).
-
 
