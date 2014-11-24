@@ -12,7 +12,6 @@
 
 -export([start_link/1
          ,handle_resource_response/2
-         ,add_request/1
 ]).
 -export([init/1
          ,handle_call/3
@@ -67,7 +66,7 @@ start_link(Args) ->
                                       ,{'consume_options', ?CONSUME_OPTIONS}
                                      ], Args).
 
--spec init([wh_json:object()]) -> {'ok', state()}.
+-spec init(wh_json:object()) -> {'ok', state()}.
 init(JObj) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
@@ -140,10 +139,6 @@ handle_cast('stop_callback', State) ->
     {'stop', 'normal', State};
 handle_cast(_Msg, State) ->
     {'noreply', State}.
-
--spec add_request(wh_json:object()) -> sup_startchild_ret().
-add_request(JObj) ->
-    cccp_callback_sup:new(JObj).
 
 %%--------------------------------------------------------------------
 %% @private
