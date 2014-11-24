@@ -118,12 +118,8 @@ handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q = CtrlQ}};
 handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id='undefined'}=State) ->
     {'noreply', State};
-handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId}=State) ->
-    Hangup = [{<<"Application-Name">>, <<"hangup">>}
-             ,{<<"Insert-At">>, <<"now">>}
-             ,{<<"Call-ID">>, ParkedCallId}
-             | wh_api:default_headers(State#state.queue, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
-    wapi_dialplan:publish_command(State#state.offnet_ctl_q, props:filter_undefined(Hangup)),
+handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId ,queue=Q ,offnet_ctl_q=CtrlQ}=State) ->
+    hangup_parked_call(ParkedCallId, Q, CtrlQ),
     {'noreply', State#state{parked_call_id = 'undefined'}};
 handle_cast({'set_auth_doc_id', CallId}, State) ->
     {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
@@ -278,3 +274,10 @@ handle_originate_ready(JObj, Props) ->
     end,
     'ok'.
 
+-spec hangup_parked_call(ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+hangup_parked_call(ParkedCallId, Q, CtrlQ) ->
+    Hangup = [{<<"Application-Name">>, <<"hangup">>}
+             ,{<<"Insert-At">>, <<"now">>}
+             ,{<<"Call-ID">>, ParkedCallId}
+             | wh_api:default_headers(Q, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
+    wapi_dialplan:publish_command(CtrlQ, props:filter_undefined(Hangup)).
