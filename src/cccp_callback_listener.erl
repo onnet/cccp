@@ -191,11 +191,9 @@ handle_resource_response(JObj, Props) ->
                 _ -> 'ok'
             end;
         {<<"error">>,<<"originate_resp">>} ->
-            gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)}),
-            'ok';
+            gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)});
         _ -> 'ok'
-    end,
-    'ok'.
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -249,9 +247,7 @@ create_request(State) ->
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
     Srv = props:get_value('server', Props),
-    case {wh_json:get_value(<<"Event-Category">>, JObj)
-          ,wh_json:get_value(<<"Event-Name">>, JObj)}
-    of
+    case wh_util:get_event_type(JObj) of
         {<<"dialplan">>, <<"originate_ready">>} ->
             Q = wh_json:get_value(<<"Server-ID">>, JObj),
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
@@ -266,8 +262,7 @@ handle_originate_ready(JObj, Props) ->
             gen_listener:add_binding(Srv, {'call', ?MK_CALL_BINDING(CallId)}),
             wapi_dialplan:publish_originate_execute(Q, Prop);
         _ -> 'ok'
-    end,
-    'ok'.
+    end.
 
 -spec hangup_parked_call(ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
 hangup_parked_call(ParkedCallId, Q, CtrlQ) ->
