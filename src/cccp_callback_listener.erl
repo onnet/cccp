@@ -127,9 +127,7 @@ handle_cast({'set_auth_doc_id', CallId}, State) ->
     whapps_call:cache(CallUpdate, ?APP_NAME),
     {'noreply', State};
 handle_cast({'parked', CallId, ToDID}, State) ->
-    Req = cccp_util:build_bridge_request(CallId, ToDID, State#state.queue, State#state.offnet_ctl_q, State#state.account_id, State#state.account_cid),
-    wapi_offnet_resource:publish_req(Req),
-    _ = spawn('cccp_util', 'store_last_dialed', [ToDID, State#state.auth_doc_id]),
+    bridge_to_final_destination(CallId, ToDID, State),
     {'noreply', State#state{parked_call_id = CallId}};
 handle_cast('stop_callback', State) ->
     {'stop', 'normal', State};
@@ -166,10 +164,7 @@ handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
-    case {wh_json:get_value(<<"Event-Category">>, JObj)
-          ,wh_json:get_value(<<"Event-Name">>, JObj)
-         }
-    of
+    case wh_util:get_event_type(JObj) of
         {<<"resource">>, <<"offnet_resp">>} ->
             ResResp = wh_json:get_value(<<"Resource-Response">>, JObj),
             handle_originate_ready(ResResp, Props);
@@ -281,3 +276,11 @@ hangup_parked_call(ParkedCallId, Q, CtrlQ) ->
              ,{<<"Call-ID">>, ParkedCallId}
              | wh_api:default_headers(Q, <<"call">>, <<"command">>, ?APP_NAME, ?APP_VERSION)],
     wapi_dialplan:publish_command(CtrlQ, props:filter_undefined(Hangup)).
+
+-spec bridge_to_final_destination(ne_binary(), ne_binary(), state()) -> 'ok'.
+bridge_to_final_destination(CallId, ToDID, #state{queue=Q, offnet_ctl_q=CtrlQ, account_id=AccountId, account_cid=AccountCID, auth_doc_id=AccountDocId}) ->
+    Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
+    wapi_offnet_resource:publish_req(Req),
+    _ = spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId]).
+
+
