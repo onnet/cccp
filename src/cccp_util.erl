@@ -112,7 +112,7 @@ ensure_valid_caller_id(OutboundCID, AccountId) ->
 -spec get_number(whapps_call:call()) -> {'num_to_dial', ne_binary()} | 'ok'.
 get_number(Call) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>), 
-    case whapps_call_command:b_prompt_and_collect_digits(2, 13, <<"cf-enter_number">>, 3, Call) of
+    case whapps_call_command:b_prompt_and_collect_digits(2, 17, <<"cf-enter_number">>, 3, Call) of
        {ok, RedialCode} ->
            get_last_dialed_number(Call);
        {ok, EnteredNumber} ->
@@ -125,8 +125,7 @@ get_number(Call) ->
 
 -spec verify_entered_number(ne_binary(), whapps_call:call()) -> 'ok'.
 verify_entered_number(EnteredNumber, Call) ->
-    CleanedNumber = re:replace(EnteredNumber, "[^0-9]", "", ['global', {'return', 'binary'}]),
-    Number = re:replace(wnm_util:to_e164(CleanedNumber), "[^0-9]", "", ['global', {'return', 'binary'}]),
+    Number = wnm_util:to_e164(re:replace(EnteredNumber, "[^0-9]", "", ['global', {'return', 'binary'}])),
     case wnm_util:is_reconcilable(Number) of
         'true' ->
             check_restrictions(Number, Call);
