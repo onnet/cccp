@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright 
+%%% @copyright
 %%% @doc
 %%%
 %%% @end
@@ -9,8 +9,8 @@
 -module(cccp_handlers).
 
 -export([handle_route_req/2
-        ,handle_route_win/2
-        ,handle_config_change/2
+         ,handle_route_win/2
+         ,handle_config_change/2
         ]).
 
 -include("cccp.hrl").
@@ -33,7 +33,7 @@ handle_route_req(JObj, Props) ->
 park_call(JObj, Props, Call) ->
     Q = props:get_value('queue', Props),
     Resp = props:filter_undefined([{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
-                                  ,{<<"Method">>, <<"park">>}
+                                   ,{<<"Method">>, <<"park">>}
                                    | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
                                   ]),
     ServerId = wh_json:get_value(<<"Server-ID">>, JObj),
@@ -59,7 +59,7 @@ handle_route_win(JObj, Props) ->
 -spec handle_config_change(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_config_change(_JObj, _Props) ->
     'ok'.
-    
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -81,15 +81,13 @@ handle_callback(CallerNumber, Call) ->
     whapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, OutboundCID, AuthDocId] ->
-            JObj = {[{<<"Number">>, CallerNumber}
-                    ,{<<"Account-ID">>, AccountId}
-                    ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
-                    ,{<<"Auth-Doc-Id">>, AuthDocId}
-                   ]},
-            timer:sleep(2000),
+            JObj = wh_json:from_list([{<<"Number">>, CallerNumber}
+                                      ,{<<"Account-ID">>, AccountId}
+                                      ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
+                                      ,{<<"Auth-Doc-Id">>, AuthDocId}
+                                     ]),
+            timer:sleep(2 * ?MILLISECONDS_IN_SECOND),
             cccp_callback_sup:new(JObj);
         E ->
-            lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E]),
-            'ok'
+            lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E])
     end.
-

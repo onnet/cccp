@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright 
+%%% @copyright
 %%% @doc
 %%%
 %%% @end
@@ -12,7 +12,7 @@
 
 -export([start_link/1
          ,process_call_to_platform/1
-]).
+        ]).
 
 -export([init/1
          ,handle_call/3
@@ -30,7 +30,7 @@
                 ,cccp_module_pid :: {pid(), reference()} | 'undefined'
                 ,status = <<"sane">> :: ne_binary()
                 ,queue :: api_binary()
-                ,self = self()
+                ,self = self() :: pid()
                }).
 -type state() :: #state{}.
 
@@ -56,13 +56,12 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link(Call) ->
-    gen_listener:start_link(?MODULE, [
-                                      {'bindings', ?BINDINGS}
+    gen_listener:start_link(?MODULE, [{'bindings', ?BINDINGS}
                                       ,{'responders', ?RESPONDERS}
                                       ,{'queue_name', ?QUEUE_NAME}       % optional to include
                                       ,{'queue_options', ?QUEUE_OPTIONS} % optional to include
                                       ,{'consume_options', ?CONSUME_OPTIONS} % optional to include
-                                     ], Call).
+                                     ], [Call]).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -80,10 +79,10 @@ start_link(Call) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(whapps_call:call()) -> {'ok', state()}.
-init(Call) ->
+init([Call]) ->
     process_flag('trap_exit', 'true'),
     CallId = whapps_call:call_id(Call),
-    put('callid', CallId),
+    wh_util:put_callid(CallId),
     self() ! 'initialize',
     {'ok', #state{call=Call}}.
 
@@ -120,7 +119,7 @@ handle_cast({'gen_listener',{'is_consuming', 'true'}}, #state{call=Call}=State) 
     CallId = whapps_call:call_id(Call),
     Srv = whapps_call:kvs_fetch('server_pid', Call),
     gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
-    gen_listener:add_responder(Srv, {'cccp_util', 'handle_callinfo'}, [{<<"call_event">>, <<"*">>}]),
+    gen_listener:add_responder(Srv, {'cccp_util', 'relay_amqp'}, [{<<"call_event">>, <<"*">>}]),
     gen_listener:add_responder(Srv, {'cccp_util', 'handle_disconnect'}, [{<<"call_event">>, <<"CHANNEL_EXECUTE_COMPLETE">>}]),
     process_call_to_platform(Call),
     {'noreply', State};
@@ -203,7 +202,7 @@ dial(AccountId, OutboundCID, AuthDocId, Call) ->
     CallId = whapps_call:call_id(Call),
     put_auth_doc_id(AuthDocId, CallId),
     {'num_to_dial', ToDID} = cccp_util:get_number(Call),
-    _ = spawn('cccp_util', 'store_last_dialed', [ToDID, AuthDocId]),
+    _ = wh_util:spawn('cccp_util', 'store_last_dialed', [ToDID, AuthDocId]),
     Req = cccp_util:build_bridge_request(CallId, ToDID, <<>>, whapps_call:control_queue(Call), AccountId, OutboundCID),
     wapi_offnet_resource:publish_req(Req).
 
@@ -213,28 +212,31 @@ pin_collect(Call) ->
 pin_collect(Call, 0) ->
     whapps_call_command:hangup(Call);
 pin_collect(Call, Retries) ->
-    case whapps_call_command:b_prompt_and_collect_digits(9,12,<<"disa-enter_pin">>,3,Call) of
-       {ok,<<>>} ->
-           whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-           pin_collect(Call, Retries - 1);
-       {ok, EnteredPin} ->
-           case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
-               [AccountId, OutboundCID, AuthDocId] ->
-                   dial(AccountId, OutboundCID, AuthDocId, Call);
-               _ ->
-                   lager:info("Wrong Pin entered."),
-                   whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-                   pin_collect(Call, Retries - 1)
-           end;
-       _ ->
-           lager:info("No pin entered."),
-           whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
-           pin_collect(Call, Retries - 1)
-     end.
+    case whapps_call_command:b_prompt_and_collect_digits(9, 12, <<"disa-enter_pin">>, 3, Call) of
+        {'ok', <<>>} ->
+            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+            pin_collect(Call, Retries - 1);
+        {'ok', EnteredPin} ->
+            handle_entered_pin(Call, Retries, EnteredPin);
+        _ ->
+            lager:info("No pin entered."),
+            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+            pin_collect(Call, Retries - 1)
+    end.
+
+-spec handle_entered_pin(whapps_call:call(), integer(), ne_binary()) -> 'ok'.
+handle_entered_pin(Call, Retries, EnteredPin) ->
+    case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
+        [AccountId, OutboundCID, AuthDocId] ->
+            dial(AccountId, OutboundCID, AuthDocId, Call);
+        _ ->
+            lager:info("Wrong Pin entered."),
+            whapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
+            pin_collect(Call, Retries - 1)
+    end.
 
 -spec put_auth_doc_id(ne_binary(), ne_binary()) -> 'ok'.
 put_auth_doc_id(AuthDocId, CallId) ->
     {'ok', CachedCall} = whapps_call:retrieve(CallId, ?APP_NAME),
     CallUpdate = whapps_call:kvs_store('auth_doc_id', AuthDocId, CachedCall),
     whapps_call:cache(CallUpdate, ?APP_NAME).
-
