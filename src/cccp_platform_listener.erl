@@ -25,16 +25,6 @@
 
 -include("cccp.hrl").
 
--record(state, {call = whapps_call:new() :: whapps_call:call()
-                ,flow = wh_json:new() :: wh_json:object()
-                ,cccp_module_pid :: {pid(), reference()} | 'undefined'
-                ,status = <<"sane">> :: ne_binary()
-                ,queue :: api_binary()
-                ,self = self() :: pid()
-               }).
--type state() :: #state{}.
-
-
 %% By convention, we put the options here in macros, but not required.
 -define(BINDINGS, [{'self', []}]).
 

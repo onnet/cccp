@@ -24,18 +24,6 @@
 
 -include("cccp.hrl").
 
--record(state, {customer_number :: ne_binary()
-                ,account_id :: ne_binary()
-                ,account_cid :: ne_binary()
-                ,stored_call :: whapps_call:call()
-                ,queue :: api_binary()
-                ,parked_call_id :: ne_binary()
-                ,offnet_ctl_q :: ne_binary()
-                ,auth_doc_id :: ne_binary()
-               }).
-
--type state() :: #state{}.
-
 -define(MK_CALL_BINDING(CallId), [{'callid', CallId}
                                   ,{'restrict_to', [<<"CHANNEL_DESTROY">>
                                                     ,<<"CHANNEL_ANSWER">>
@@ -78,7 +66,7 @@ init([JObj]) ->
     {'ok', #state{customer_number = CustomerNumber
                   ,account_id = AccountId
                   ,account_cid = OutboundCID
-                  ,stored_call = whapps_call:new()
+                  ,call = whapps_call:new()
                   ,queue = 'undefined'
                   ,auth_doc_id = AuthDocId
                  }}.
