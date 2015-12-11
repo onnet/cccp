@@ -104,6 +104,8 @@ handle_cast({'gen_listener', {'created_queue', Q}}, #state{queue='undefined'}=S)
 handle_cast('originate_park', State) ->
     originate_park(State),
     {'noreply', State};
+handle_cast({'call_update', CallUpdate}, State) ->
+    {'noreply', State#state{call=CallUpdate}};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q=CtrlQ}};
 handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id='undefined'}=State) ->
@@ -114,11 +116,9 @@ handle_cast({'hangup_parked_call', _ErrMsg}, #state{parked_call_id=ParkedCallId
                                                    }=State) ->
     hangup_parked_call(ParkedCallId, Q, CtrlQ),
     {'noreply', State#state{parked_call_id='undefined'}};
-handle_cast({'set_auth_doc_id', CallId}, #state{auth_doc_id=AuthDocId}=State) ->
-    {'ok', Call} = whapps_call:retrieve(CallId, ?APP_NAME),
+handle_cast('set_auth_doc_id', #state{auth_doc_id=AuthDocId, call=Call}=State) ->
     CallUpdate = whapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
-    whapps_call:cache(CallUpdate, ?APP_NAME),
-    {'noreply', State};
+    {'noreply', State#state{call=CallUpdate}};
 handle_cast({'parked', CallId, ToDID}, State) ->
     _P = bridge_to_final_destination(CallId, ToDID, State),
     lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, _P]),
@@ -149,11 +149,12 @@ handle_info(_Info, State) ->
 %% @spec handle_event(JObj, State) -> {reply, Options}
 %% @end
 %%--------------------------------------------------------------------
-handle_event(_JObj, _State) ->
-    {'reply', []}.
+handle_event(_JObj, #state{call=Call}=_State) ->
+    {'reply', [{'call', Call}]}.
 
 -spec handle_resource_response(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
+    lager:info("2IAM_handle_resource_response Props: ~p",[Props]),
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
@@ -162,26 +163,26 @@ handle_resource_response(JObj, Props) ->
             ResResp = wh_json:get_value(<<"Resource-Response">>, JObj),
             handle_originate_ready(ResResp, Props);
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
-            {'ok', Call} =  whapps_call:retrieve(CallId, ?APP_NAME),
+            Call = props:get_value('call', Props),
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
-            whapps_call:cache(CallUpdate, ?APP_NAME),
+            gen_listener:cast(Srv, {'call_update', CallUpdate}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             gen_listener:add_responder(Srv, {'cccp_util', 'relay_amqp'}, [{<<"*">>, <<"*">>}]),
-            {'num_to_dial', Number} = cccp_util:get_number(CallUpdate),
+            {'num_to_dial', Number} = cccp_util:get_number(Call),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             gen_listener:cast(Srv, 'stop_callback');
         {<<"call_event">>,<<"CHANNEL_EXECUTE_COMPLETE">>} ->
             cccp_util:handle_disconnect(JObj, Props);
         {<<"resource">>,<<"originate_resp">>} ->
-            handle_originate_response(JObj, Srv, CallId);
+            handle_originate_response(JObj, Srv);
         {<<"error">>,<<"originate_resp">>} ->
             gen_listener:cast(Srv, {'hangup_parked_call', wh_json:get_value(<<"Error-Message">>, JObj)});
         _ -> 'ok'
     end.
 
--spec handle_originate_response(wh_json:object(), server_ref(), ne_binary()) -> 'ok'.
-handle_originate_response(JObj, Srv, CallId) ->
+-spec handle_originate_response(wh_json:object(), server_ref()) -> 'ok'.
+handle_originate_response(JObj, Srv) ->
     case {wh_json:get_value(<<"Application-Name">>, JObj)
           ,wh_json:get_value(<<"Application-Response">>, JObj)
          }
@@ -189,7 +190,7 @@ handle_originate_response(JObj, Srv, CallId) ->
         {<<"bridge">>, <<"SUCCESS">>} ->
             gen_listener:cast(Srv, 'stop_callback');
         {<<"park">>, <<"SUCCESS">>} ->
-            gen_listener:cast(Srv, {'set_auth_doc_id', CallId});
+            gen_listener:cast(Srv, 'set_auth_doc_id');
         _ -> 'ok'
     end.
 
@@ -246,6 +247,7 @@ create_request(#state{account_id=AccountId
 
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
+    lager:info("1IAM_handle_originate_ready Props: ~p",[Props]),
     Srv = props:get_value('server', Props),
     case wh_util:get_event_type(JObj) of
         {<<"dialplan">>, <<"originate_ready">>} ->
@@ -253,7 +255,7 @@ handle_originate_ready(JObj, Props) ->
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             CtrlQ = wh_json:get_value(<<"Control-Queue">>, JObj),
             Call = whapps_call:set_control_queue(CtrlQ, whapps_call:from_route_req(JObj)),
-            whapps_call:cache(Call, ?APP_NAME),
+            gen_listener:cast(Srv, {'call_update', Call}),
             Prop = [{<<"Call-ID">>, CallId}
                     ,{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
                     | wh_api:default_headers(gen_listener:queue_name(Srv), ?APP_NAME, ?APP_VERSION)

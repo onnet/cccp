@@ -21,31 +21,25 @@
 -define(DEFAULT_CALLEE_REGEX, <<"^\\+?\\d{7,}$">>).
 
 -spec relay_amqp(wh_json:object(), wh_proplist()) -> 'ok'.
-relay_amqp(JObj, _Props) ->
-    case whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME) of
-        {'ok', Call} -> relay_event(JObj, Call);
-        _ -> 'ok'
-    end.
-
--spec relay_event(wh_json:object(), whapps_call:call()) -> 'ok'.
-relay_event(JObj, Call) ->
-    case whapps_call:kvs_fetch('consumer_pid', Call) of
-        Pid when is_pid(Pid) -> whapps_call_command:relay_event(Pid, JObj);
+relay_amqp(JObj, Props) ->
+lager:info("IAM_relay_amqp Props: ~p", [Props]),
+lager:info("IAM_relay_amqp JObj: ~p", [JObj]),
+    case whapps_call:kvs_fetch('consumer_pid', props:get_value('call', Props)) of
+        Pid when is_pid(Pid) -> lager:info("IAM_relay_event_amqp consumer_pid: ~p",[Pid]), whapps_call_command:relay_event(Pid, JObj);
         _ -> 'ok'
     end.
 
 -spec handle_disconnect(wh_json:object(), wh_proplist()) -> 'ok'.
-handle_disconnect(JObj, _Props) ->
+handle_disconnect(JObj, Props) ->
     case (<<"CHANNEL_EXECUTE_COMPLETE">> =:= wh_json:get_value(<<"Event-Name">>, JObj))
         andalso is_binary(wh_json:get_value(<<"Hangup-Code">>, JObj))
     of
-        'true' -> handle_disconnect_cause(JObj);
+        'true' -> handle_disconnect_cause(JObj, props:get_value('call', Props));
         'false' -> 'ok'
     end.
 
--spec handle_disconnect_cause(wh_json:object()) -> 'ok'.
-handle_disconnect_cause(JObj) ->
-    {'ok', Call} = whapps_call:retrieve(wh_json:get_value(<<"Call-ID">>, JObj), ?APP_NAME),
+-spec handle_disconnect_cause(wh_json:object(), whapps_call:call()) -> 'ok'.
+handle_disconnect_cause(JObj, Call) ->
     case wh_json:get_value(<<"Disposition">>, JObj) of
         'undefined' -> 'ok';
         <<"UNALLOCATED_NUMBER">> ->
@@ -149,8 +143,7 @@ verify_entered_number(EnteredNumber, Call) ->
                                     {'num_to_dial', ne_binary()} |
                                     'ok'.
 get_last_dialed_number(Call) ->
-    {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
-    DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
+    DocId = whapps_call:kvs_fetch('auth_doc_id', Call),
     {'ok', Doc} = couch_mgr:open_doc(<<"cccps">>, DocId),
     LastDialed = wh_json:get_value(<<"pvt_last_dialed">>, Doc),
     case cccp_allowed_callee(LastDialed) of
@@ -171,8 +164,7 @@ store_last_dialed(Number, DocId) ->
                                 {'num_to_dial', ne_binary()} |
                                 'ok'.
 check_restrictions(Number, Call) ->
-    {'ok', CachedCall} = whapps_call:retrieve(whapps_call:call_id(Call), ?APP_NAME),
-    DocId = whapps_call:kvs_fetch('auth_doc_id', CachedCall),
+    DocId = whapps_call:kvs_fetch('auth_doc_id', Call),
     {'ok', Doc} = couch_mgr:open_doc(<<"cccps">>, DocId),
     AccountId = wh_doc:account_id(Doc),
     AccountDb = wh_doc:account_db(Doc),
