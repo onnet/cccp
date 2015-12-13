@@ -24,16 +24,9 @@
 
 -include("cccp.hrl").
 
--define(MK_CALL_BINDING(CallId), [{'callid', CallId}
-                                  ,{'restrict_to', [<<"CHANNEL_DESTROY">>
-                                                    ,<<"CHANNEL_ANSWER">>
-                                                   ]}
-                                 ]).
-
 -define(BINDINGS, [{'self', []}]).
--define(RESPONDERS, [{{?MODULE, 'handle_resource_response'}
-                      ,[{<<"*">>, <<"*">>}]
-                     }
+-define(RESPONDERS, [{{?MODULE, 'handle_resource_response'},[{<<"*">>, <<"*">>}]}
+                    ,{{'cccp_util', 'relay_amqp'}, [{<<"*">>, <<"*">>}]}
                     ]).
 
 -define(QUEUE_NAME, <<>>).
@@ -166,8 +159,6 @@ handle_resource_response(JObj, Props) ->
             Call = props:get_value('call', Props),
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
-            gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
-            gen_listener:add_responder(Srv, {'cccp_util', 'relay_amqp'}, [{<<"*">>, <<"*">>}]),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             gen_listener:cast(Srv, {'parked', CallId, Number});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
@@ -261,7 +252,7 @@ handle_originate_ready(JObj, Props) ->
                     | wh_api:default_headers(gen_listener:queue_name(Srv), ?APP_NAME, ?APP_VERSION)
                    ],
             gen_listener:cast(Srv, {'offnet_ctl_queue', CtrlQ}),
-            gen_listener:add_binding(Srv, {'call', ?MK_CALL_BINDING(CallId)}),
+            gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]}),
             wapi_dialplan:publish_originate_execute(Q, Prop);
         _ -> 'ok'
     end.
