@@ -161,7 +161,7 @@ handle_resource_response(JObj, Props) ->
             Call = props:get_value('call', Props),
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
-            gen_listener:cast(Srv, {'parked', CallId, b_number_to_dial(Props)});
+            gen_listener:cast(Srv, {'parked', CallId, b_leg_number(Props)});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             gen_listener:cast(Srv, 'stop_callback');
         {<<"call_event">>,<<"CHANNEL_EXECUTE_COMPLETE">>} ->
@@ -281,7 +281,7 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
         _ -> wh_util:spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId])
     end.
 
-b_number_to_dial(Props) ->
+b_leg_number(Props) ->
     case props:get_value('b_leg_number', Props) of
         'undefined' ->
             Call = props:get_value('call', Props),
