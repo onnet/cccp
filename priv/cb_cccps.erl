@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright 
+%%% @copyright
 %%% @doc
 %%%
 %%% @end
@@ -11,8 +11,8 @@
 -export([init/0
          ,allowed_methods/0, allowed_methods/1
          ,resource_exists/0, resource_exists/1
-         ,validate/1, validate/2
-         ,put/1
+         ,validate/1, validate/2, validate/3
+         ,put/1, put/2
          ,post/2
          ,delete/2
         ]).
@@ -20,7 +20,7 @@
 -include("../crossbar.hrl").
 
 -define(CB_LIST, <<"cccps/crossbar_listing">>).
--define(CCCPS_DB, <<"cccps">>).
+-define(AUTODIAL, <<"autodial">>).
 
 %%%===================================================================
 %%% API
@@ -45,7 +45,7 @@ init() ->
 -spec maybe_init_db() -> 'ok'.
 maybe_init_db() ->
     case couch_mgr:db_exists(<<"cccps">>) of
-        'true' -> 
+        'true' ->
              _ = couch_mgr:revise_doc_from_file(<<"cccps">>, 'crossbar', <<"views/cccps.json">>),
             'ok';
         'false' -> init_db()
@@ -69,7 +69,7 @@ init_db() ->
 allowed_methods() ->
     [?HTTP_GET, ?HTTP_PUT].
 allowed_methods(_) ->
-    [?HTTP_GET, ?HTTP_POST, ?HTTP_DELETE].
+    [?HTTP_GET, ?HTTP_PUT, ?HTTP_POST, ?HTTP_DELETE].
 
 %%--------------------------------------------------------------------
 %% @public
@@ -101,12 +101,14 @@ validate(Context) ->
     validate_cccps(Context, cb_context:req_verb(Context)).
 validate(Context, Id) ->
     validate_cccp(Context, Id, cb_context:req_verb(Context)).
+validate(Context, _Id, ?AUTODIAL) ->
+    validate_cccp(Context, ?AUTODIAL, cb_context:req_verb(Context)).
 
 -spec validate_cccps(cb_context:context(), http_method()) -> cb_context:context().
 validate_cccps(Context, ?HTTP_GET) ->
     summary(Context);
-validate_cccps(#cb_context{req_data=ReqData}=Context, ?HTTP_PUT) ->
-    case wh_json:get_value(<<"cid">>, ReqData) of
+validate_cccps(Context, ?HTTP_PUT) ->
+    case wh_json:get_value(<<"cid">>, cb_context:req_data(Context)) of
         'undefined' ->
             check_pin(Context);
         _ ->
@@ -114,6 +116,14 @@ validate_cccps(#cb_context{req_data=ReqData}=Context, ?HTTP_PUT) ->
     end.
 
 -spec validate_cccp(cb_context:context(), path_token(), http_method()) -> cb_context:context().
+validate_cccp(Context, ?AUTODIAL, ?HTTP_PUT) ->
+    JObj = wh_json:from_list([{<<"Number">>, wh_json:get_value(<<"a_leg_number">>, cb_context:req_data(Context))}
+                              ,{<<"B-Leg-Number">>, wh_json:get_value(<<"b_leg_number">>, cb_context:req_data(Context))}
+                              ,{<<"Outbound-Caller-ID-Number">>, wh_json:get_value(<<"outbound_cid">>, cb_context:req_data(Context))}
+                              ,{<<"Account-ID">>, cb_context:account_id(Context)}
+                             ]),
+    cccp_callback_sup:new(JObj),
+    cb_context:set_resp_status(Context, 'success');
 validate_cccp(Context, Id, ?HTTP_GET) ->
     read(Id, Context);
 validate_cccp(Context, Id, ?HTTP_POST) ->
@@ -132,6 +142,10 @@ put(Context) ->
     Context2 = crossbar_doc:save(Context),
     couch_mgr:ensure_saved(<<"cccps">>, cb_context:doc(Context2)),
     Context2.
+
+-spec put(cb_context:context(), path_token()) -> cb_context:context().
+put(Context, ?AUTODIAL) ->
+    Context.
 
 %%--------------------------------------------------------------------
 %% @public
@@ -157,7 +171,7 @@ delete(Context, _) ->
     Context2 = crossbar_doc:delete(Context),
     case cb_context:resp_status(Context2) of
         'success' ->
-            _ = couch_mgr:del_doc(?CCCPS_DB, wh_json:get_value(<<"_id">>, cb_context:doc(Context2))),
+            _ = couch_mgr:del_doc(?KZ_CCCPS_DB, wh_doc:id(cb_context:doc(Context2))),
             Context2;
         _ ->
             Context2
@@ -215,7 +229,7 @@ summary(Context) ->
 %%--------------------------------------------------------------------
 -spec on_successful_validation(api_binary(), cb_context:context()) -> cb_context:context().
 on_successful_validation('undefined', Context) ->
-    cb_context:set_doc(Context, wh_json:set_value(<<"pvt_type">>, <<"cccp">>, cb_context:doc(Context)));
+    cb_context:set_doc(Context, wh_doc:set_type(cb_context:doc(Context), <<"cccp">>));
 on_successful_validation(Id, Context) ->
     crossbar_doc:load_merge(Id, Context).
 
@@ -241,41 +255,55 @@ check_pin(Context) ->
     case unique_pin(Context) of
         'empty' -> create(Context);
         _ ->
-            cb_context:add_validation_error(<<"cccp">>
-                                            ,<<"unique">>
-                                            ,<<"Pin already exists">>
-                                            ,Context)
+            cb_context:add_validation_error(
+                <<"cccp">>
+                ,<<"unique">>
+                ,wh_json:from_list([
+                    {<<"message">>, <<"Pin already exists">>}
+                 ])
+                ,Context
+            )
     end.
 
 -spec check_cid(cb_context:context()) -> cb_context:context().
-check_cid(#cb_context{req_data=ReqData}=Context) ->
+check_cid(Context) ->
+    ReqData = cb_context:req_data(Context),
     CID = wh_json:get_value(<<"cid">>, ReqData),
     case wnm_util:is_reconcilable(CID) of
-        'false' -> 
-            cb_context:add_validation_error(<<"cccp">>
-                                            ,<<"unique">>
-                                            ,<<"Number is non reconcilable">>
-                                            ,Context);
+        'false' ->
+            cb_context:add_validation_error(
+                <<"cccp">>
+                ,<<"unique">>
+                ,wh_json:from_list([
+                    {<<"message">>, <<"Number is non reconcilable">>}
+                    ,{<<"cause">>, CID}
+                 ])
+                ,Context
+            );
         'true' ->
             ReqData2 = wh_json:set_value(<<"cid">>, wnm_util:normalize_number(CID), ReqData),
-            Context2 = Context#cb_context{req_data=ReqData2},
+            Context2 = cb_context:set_req_data(Context, ReqData2),
             case unique_cid(Context2) of
                 'empty' -> create(Context2);
                 _ ->
-                    cb_context:add_validation_error(<<"cccp">>
-                                                ,<<"unique">>
-                                                ,<<"CID already exists">>
-                                                ,Context)
+                    cb_context:add_validation_error(
+                        <<"cccp">>
+                        ,<<"unique">>
+                        ,wh_json:from_list([
+                            {<<"message">>, <<"CID already exists">>}
+                            ,{<<"cause">>, CID}
+                         ])
+                        ,Context
+                    )
             end
 
     end.
--spec unique_cid(cb_context:context()) -> {ok, list()} | 'empty' | 'error'.
-unique_cid(#cb_context{req_data=ReqData}) ->
-    CID = wh_json:get_value(<<"cid">>, ReqData),
+-spec unique_cid(cb_context:context()) -> {'ok', list()} | 'empty' | 'error'.
+unique_cid(Context) ->
+    CID = wh_json:get_value(<<"cid">>, cb_context:req_data(Context)),
     cccp_util:authorize(CID, <<"cccps/cid_listing">>).
 
--spec unique_pin(cb_context:context()) -> {ok, list()} | 'empty' | 'error'.
-unique_pin(#cb_context{req_data=ReqData}) ->
-    Pin = wh_json:get_value(<<"pin">>, ReqData),
+-spec unique_pin(cb_context:context()) -> {'ok', list()} | 'empty' | 'error'.
+unique_pin(Context) ->
+    Pin = wh_json:get_value(<<"pin">>, cb_context:req_data(Context)),
     cccp_util:authorize(Pin, <<"cccps/pin_listing">>).
-

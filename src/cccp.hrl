@@ -15,6 +15,7 @@
 -define(DEFAULT_TIMEOUT, 15).
 
 -record(state, {customer_number :: ne_binary()
+                ,b_leg_number :: ne_binary()
                 ,call = whapps_call:new() :: whapps_call:call()
                 ,account_id :: ne_binary()
                 ,account_cid :: ne_binary()

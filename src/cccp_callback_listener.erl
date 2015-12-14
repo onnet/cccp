@@ -52,11 +52,13 @@ start_link(JObj) ->
 -spec init(wh_json:object()) -> {'ok', state()}.
 init([JObj]) ->
     CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
+    BLegNumber = wh_json:get_value(<<"B-Leg-Number">>, JObj),
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
     OutboundCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
     AuthDocId = wh_json:get_value(<<"Auth-Doc-Id">>, JObj),
 
     {'ok', #state{customer_number = CustomerNumber
+                  ,b_leg_number = BLegNumber
                   ,account_id = AccountId
                   ,account_cid = OutboundCID
                   ,call = whapps_call:new()
@@ -142,8 +144,8 @@ handle_info(_Info, State) ->
 %% @spec handle_event(JObj, State) -> {reply, Options}
 %% @end
 %%--------------------------------------------------------------------
-handle_event(_JObj, #state{call=Call}=_State) ->
-    {'reply', [{'call', Call}]}.
+handle_event(_JObj, #state{call=Call, b_leg_number=BLegNumber}=_State) ->
+    {'reply', [{'call', Call},{b_leg_number, BLegNumber}]}.
 
 -spec handle_resource_response(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
@@ -159,8 +161,7 @@ handle_resource_response(JObj, Props) ->
             Call = props:get_value('call', Props),
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), Call),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
-            {'num_to_dial', Number} = cccp_util:get_number(Call),
-            gen_listener:cast(Srv, {'parked', CallId, Number});
+            gen_listener:cast(Srv, {'parked', CallId, b_number_to_dial(Props)});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             gen_listener:cast(Srv, 'stop_callback');
         {<<"call_event">>,<<"CHANNEL_EXECUTE_COMPLETE">>} ->
@@ -275,4 +276,16 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
                                                  }) ->
     Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
     wapi_offnet_resource:publish_req(Req),
-    wh_util:spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId]).
+    case AccountDocId of
+        'undefined' -> 'ok';
+        _ -> wh_util:spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId])
+    end.
+
+b_number_to_dial(Props) ->
+    case props:get_value('b_leg_number', Props) of
+        'undefined' ->
+            Call = props:get_value('call', Props),
+            {'num_to_dial', Number} = cccp_util:get_number(Call),
+            Number;
+        BLegNumber -> BLegNumber
+    end.
