@@ -13,6 +13,7 @@
          ,handle_disconnect/2
          ,get_number/1
          ,store_last_dialed/2
+         ,build_bridge_offnet_request/6
          ,build_bridge_request/6
         ]).
 
@@ -22,10 +23,8 @@
 
 -spec relay_amqp(wh_json:object(), wh_proplist()) -> 'ok'.
 relay_amqp(JObj, Props) ->
-lager:info("IAM_relay_amqp Props: ~p", [Props]),
-lager:info("IAM_relay_amqp JObj: ~p", [JObj]),
     case whapps_call:kvs_fetch('consumer_pid', props:get_value('call', Props)) of
-        Pid when is_pid(Pid) -> lager:info("IAM_relay_event_amqp consumer_pid: ~p",[Pid]), whapps_call_command:relay_event(Pid, JObj);
+        Pid when is_pid(Pid) -> whapps_call_command:relay_event(Pid, JObj);
         _ -> 'ok'
     end.
 
@@ -202,9 +201,21 @@ hangup_unauthorized_call(Call) ->
     whapps_call_command:prompt(<<"cf-unauthorized_call">>, Call),
     whapps_call_command:queued_hangup(Call).
 
--spec build_bridge_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) ->
+-spec cccp_allowed_callee(ne_binary()) -> boolean().
+cccp_allowed_callee(Number) ->
+    Regex = whapps_config:get_binary(?CCCP_CONFIG_CAT, <<"allowed_callee_regex">>, ?DEFAULT_CALLEE_REGEX),
+    case re:run(Number, Regex) of
+        'nomatch' ->
+            lager:debug("number '~s' is not allowed to call through cccp", [Number]),
+            'false';
+        _ ->
+            lager:debug("number '~s' is allowed to call through cccp, proceeding", [Number]),
+            'true'
+    end.
+
+-spec build_bridge_offnet_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) ->
                                   wh_proplist().
-build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
+build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Application-Name">>, <<"bridge">>}
@@ -221,14 +232,38 @@ build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
        | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
       ]).
 
--spec cccp_allowed_callee(ne_binary()) -> boolean().
-cccp_allowed_callee(Number) ->
-    Regex = whapps_config:get_binary(?CCCP_CONFIG_CAT, <<"allowed_callee_regex">>, ?DEFAULT_CALLEE_REGEX),
-    case re:run(Number, Regex) of
-        'nomatch' ->
-            lager:debug("number '~s' is not allowed to call through cccp", [Number]),
-            'false';
-        _ ->
-            lager:debug("number '~s' is allowed to call through cccp, proceeding", [Number]),
-            'true'
-    end.
+-spec build_bridge_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) ->
+                                  wh_proplist().
+build_bridge_request(CallId, ToDID, _Q, CtrlQ, AccountId, OutboundCID) ->
+
+    CCVs = [{<<"Account-ID">>, AccountId}
+            ,{<<"Authorizing-ID">>, AccountId}
+            ,{<<"Authorizing-Type">>, <<"device">>}
+           ],
+
+    Endpoint = [
+                {<<"Invite-Format">>, <<"loopback">>}
+               ,{<<"Route">>,  ToDID}
+               ,{<<"To-DID">>, ToDID}
+               ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
+               ],
+
+    props:filter_undefined(
+      [{<<"Resource-Type">>, <<"audio">>}
+       ,{<<"Application-Name">>, <<"bridge">>}
+       ,{<<"Endpoints">>, [wh_json:from_list(Endpoint)]}
+       ,{<<"Existing-Call-ID">>, CallId}
+       ,{<<"Control-Queue">>, CtrlQ}
+       ,{<<"Resource-Type">>, <<"originate">>}
+       ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
+       ,{<<"Outbound-Caller-ID-Name">>, OutboundCID}
+       ,{<<"Originate-Immediate">>, 'true'}
+       ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
+       ,{<<"Account-ID">>, AccountId}
+       ,{<<"Dial-Endpoint-Method">>, <<"single">>}
+       ,{<<"Continue-On-Fail">>, 'true'}
+       ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
+       ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
+       | wh_api:default_headers(<<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
+      ]).
+

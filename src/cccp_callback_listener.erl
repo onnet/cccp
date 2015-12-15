@@ -149,7 +149,6 @@ handle_event(_JObj, #state{call=Call, b_leg_number=BLegNumber}=_State) ->
 
 -spec handle_resource_response(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
-    lager:info("2IAM_handle_resource_response Props: ~p",[Props]),
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
 
@@ -239,7 +238,6 @@ create_request(#state{account_id=AccountId
 
 -spec handle_originate_ready(wh_json:object(), proplist()) -> 'ok'.
 handle_originate_ready(JObj, Props) ->
-    lager:info("1IAM_handle_originate_ready Props: ~p",[Props]),
     Srv = props:get_value('server', Props),
     case wh_util:get_event_type(JObj) of
         {<<"dialplan">>, <<"originate_ready">>} ->
@@ -274,8 +272,16 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
                                                   ,account_cid=AccountCID
                                                   ,auth_doc_id=AccountDocId
                                                  }) ->
-    Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
-    wapi_offnet_resource:publish_req(Req),
+
+    case wnm_util:is_reconcilable(ToDID) of
+        'true' -> 
+            Req = cccp_util:build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
+            wapi_offnet_resource:publish_req(Req);
+        'false' ->
+            Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
+            wapi_resource:publish_originate_req(Req)
+    end,
+
     case AccountDocId of
         'undefined' -> 'ok';
         _ -> wh_util:spawn(fun cccp_util:store_last_dialed/2, [ToDID, AccountDocId])
@@ -289,3 +295,4 @@ b_leg_number(Props) ->
             Number;
         BLegNumber -> BLegNumber
     end.
+
