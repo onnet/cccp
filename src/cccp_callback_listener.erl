@@ -278,7 +278,7 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
     wapi_offnet_resource:publish_req(Req),
     case AccountDocId of
         'undefined' -> 'ok';
-        _ -> wh_util:spawn('cccp_util', 'store_last_dialed', [ToDID, AccountDocId])
+        _ -> wh_util:spawn(fun cccp_util:store_last_dialed/2, [ToDID, AccountDocId])
     end.
 
 b_leg_number(Props) ->
