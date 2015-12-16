@@ -221,9 +221,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec originate_park(state()) -> 'ok'.
 originate_park(State) ->
-lager:info("IAM before"),
     _ = timer:sleep(State#state.callback_delay),
-lager:info("IAM after"),
     wapi_offnet_resource:publish_req(create_request(State)).
 
 -spec create_request(state()) -> wh_proplist().
