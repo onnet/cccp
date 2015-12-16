@@ -13,6 +13,7 @@
 
 -define(TIMEOUT, <<"timeout">>).
 -define(DEFAULT_TIMEOUT, 15).
+-define(CALLBACK_DELAY, 3).
 
 -record(state, {customer_number :: ne_binary()
                 ,b_leg_number :: ne_binary()
@@ -25,6 +26,7 @@
                 ,auth_doc_id :: ne_binary()
                 ,self = self() :: pid()
                 ,consumer_pid :: pid()
+                ,callback_delay :: integer()
                }).
 
 -type state() :: #state{}.

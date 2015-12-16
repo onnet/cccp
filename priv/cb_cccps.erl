@@ -121,6 +121,7 @@ validate_cccp(Context, ?AUTODIAL, ?HTTP_PUT) ->
                               ,{<<"B-Leg-Number">>, wh_json:get_value(<<"b_leg_number">>, cb_context:req_data(Context))}
                               ,{<<"Outbound-Caller-ID-Number">>, wh_json:get_value(<<"outbound_cid">>, cb_context:req_data(Context))}
                               ,{<<"Account-ID">>, cb_context:account_id(Context)}
+                              ,{<<"Callback-Delay">>, wh_json:get_value(<<"callback_delay">>, cb_context:req_data(Context))}
                              ]),
     cccp_callback_sup:new(JObj),
     cb_context:set_resp_status(Context, 'success');

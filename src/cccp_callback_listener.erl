@@ -56,6 +56,7 @@ init([JObj]) ->
     AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
     OutboundCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
     AuthDocId = wh_json:get_value(<<"Auth-Doc-Id">>, JObj),
+    CallbackDelay = wh_json:get_value(<<"Callback-Delay">>, JObj),
 
     {'ok', #state{customer_number = CustomerNumber
                   ,b_leg_number = BLegNumber
@@ -64,6 +65,10 @@ init([JObj]) ->
                   ,call = whapps_call:new()
                   ,queue = 'undefined'
                   ,auth_doc_id = AuthDocId
+                  ,callback_delay = case is_integer(CallbackDelay) of
+                                        'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
+                                        'false' -> ?CALLBACK_DELAY * ?MILLISECONDS_IN_SECOND
+                                    end
                  }}.
 
 %%--------------------------------------------------------------------
@@ -216,6 +221,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec originate_park(state()) -> 'ok'.
 originate_park(State) ->
+lager:info("IAM before"),
+    _ = timer:sleep(State#state.callback_delay),
+lager:info("IAM after"),
     wapi_offnet_resource:publish_req(create_request(State)).
 
 -spec create_request(state()) -> wh_proplist().
