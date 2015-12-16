@@ -265,7 +265,7 @@ hangup_parked_call(ParkedCallId, Q, CtrlQ) ->
              ],
     wapi_dialplan:publish_command(CtrlQ, props:filter_undefined(Hangup)).
 
--spec bridge_to_final_destination(ne_binary(), ne_binary(), state()) -> pid().
+-spec bridge_to_final_destination(ne_binary(), ne_binary(), state()) -> 'ok'.
 bridge_to_final_destination(CallId, ToDID, #state{queue=Q
                                                   ,offnet_ctl_q=CtrlQ
                                                   ,account_id=AccountId
@@ -273,18 +273,11 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
                                                   ,auth_doc_id=AccountDocId
                                                  }) ->
 
-    case wnm_util:is_reconcilable(ToDID) of
-        'true' -> 
-            Req = cccp_util:build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
-            wapi_offnet_resource:publish_req(Req);
-        'false' ->
-            Req = cccp_util:build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
-            wapi_resource:publish_originate_req(Req)
-    end,
+    cccp_util:bridge(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
 
     case AccountDocId of
         'undefined' -> 'ok';
-        _ -> wh_util:spawn(fun cccp_util:store_last_dialed/2, [ToDID, AccountDocId])
+        _ -> cccp_util:store_last_dialed(ToDID, AccountDocId)
     end.
 
 b_leg_number(Props) ->
