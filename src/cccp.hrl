@@ -13,7 +13,6 @@
 
 -define(TIMEOUT, <<"timeout">>).
 -define(DEFAULT_TIMEOUT, 15).
--define(CALLBACK_DELAY, 3).
 
 -record(state, {customer_number :: ne_binary()
                 ,b_leg_number :: ne_binary()

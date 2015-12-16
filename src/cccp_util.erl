@@ -13,7 +13,7 @@
          ,handle_disconnect/2
          ,get_number/1
          ,store_last_dialed/2
-         ,bridge/6
+         ,bridge/7
         ]).
 
 -include("cccp.hrl").
@@ -230,12 +230,14 @@ build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
        | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
       ]).
 
--spec build_bridge_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> wh_proplist().
-build_bridge_request(CallId, ToDID, _Q, CtrlQ, AccountId, OutboundCID) ->
-
+-spec build_bridge_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary()) -> wh_proplist().
+build_bridge_request(CallId, ToDID, CID, CtrlQ, AccountId) ->
+    {'ok', AccountDoc} = couch_mgr:open_cache_doc(?WH_ACCOUNTS_DB, AccountId),
+    Realm = wh_json:get_value(<<"realm">>, AccountDoc),
     CCVs = [{<<"Account-ID">>, AccountId}
             ,{<<"Authorizing-ID">>, AccountId}
             ,{<<"Authorizing-Type">>, <<"device">>}
+            ,{<<"Presence-ID">>, <<CID/binary, "@", Realm/binary>>}
            ],
 
     Endpoint = [
@@ -252,8 +254,8 @@ build_bridge_request(CallId, ToDID, _Q, CtrlQ, AccountId, OutboundCID) ->
        ,{<<"Existing-Call-ID">>, CallId}
        ,{<<"Control-Queue">>, CtrlQ}
        ,{<<"Resource-Type">>, <<"originate">>}
-       ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
-       ,{<<"Outbound-Caller-ID-Name">>, OutboundCID}
+       ,{<<"Caller-ID-Number">>, CID}
+       ,{<<"Caller-ID-Name">>, CID}
        ,{<<"Originate-Immediate">>, 'true'}
        ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
        ,{<<"Account-ID">>, AccountId}
@@ -269,21 +271,21 @@ bridge_to_offnet(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID) ->
     Req = build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
     wapi_offnet_resource:publish_req(Req).
 
--spec bridge_to_loopback(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge_to_loopback(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID) ->
-    Req = build_bridge_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
+-spec bridge_to_loopback(ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+bridge_to_loopback(CallId, ToDID, CID,  CtrlQ, AccountId) ->
+    Req = build_bridge_request(CallId, ToDID, CID, CtrlQ, AccountId),
     wapi_resource:publish_originate_req(Req).
 
--spec bridge(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID) ->
+-spec bridge(ne_binary(), ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+bridge(CallId, ToDID, CID, Q, CtrlQ, AccountId, AccountCID) ->
     case wnm_util:is_reconcilable(ToDID) of
         'true' -> 
             case wh_number_manager:lookup_account_by_number(ToDID) of
                 {'ok',_,_} ->
-                    bridge_to_loopback(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID);
+                    bridge_to_loopback(CallId, ToDID, CID, CtrlQ, AccountId);
                 _ ->
                     bridge_to_offnet(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID)
             end;
         'false' ->
-            bridge_to_loopback(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID)
+            bridge_to_loopback(CallId, ToDID, CID, CtrlQ, AccountId)
     end.

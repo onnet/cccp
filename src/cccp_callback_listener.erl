@@ -67,7 +67,7 @@ init([JObj]) ->
                   ,auth_doc_id = AuthDocId
                   ,callback_delay = case is_integer(CallbackDelay) of
                                         'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
-                                        'false' -> ?CALLBACK_DELAY * ?MILLISECONDS_IN_SECOND
+                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
                                     end
                  }}.
 
@@ -277,9 +277,10 @@ bridge_to_final_destination(CallId, ToDID, #state{queue=Q
                                                   ,account_id=AccountId
                                                   ,account_cid=AccountCID
                                                   ,auth_doc_id=AccountDocId
+                                                  ,customer_number=CustomerNumber
                                                  }) ->
 
-    cccp_util:bridge(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
+    cccp_util:bridge(CallId, ToDID, CustomerNumber, Q, CtrlQ, AccountId, AccountCID),
 
     case AccountDocId of
         'undefined' -> 'ok';

@@ -192,7 +192,7 @@ dial(AccountId, OutboundCID, AuthDocId, Call) ->
     CallId = whapps_call:call_id(Call),
     put_auth_doc_id(AuthDocId, CallId),
     {'num_to_dial', ToDID} = cccp_util:get_number(Call),
-    cccp_util:bridge(CallId, ToDID, <<>>, whapps_call:control_queue(Call), AccountId, OutboundCID),
+    cccp_util:bridge(CallId, ToDID, ToDID, <<>>, whapps_call:control_queue(Call), AccountId, OutboundCID),
     cccp_util:store_last_dialed(ToDID, AuthDocId).
 
 -spec pin_collect(whapps_call:call()) -> 'ok'.
