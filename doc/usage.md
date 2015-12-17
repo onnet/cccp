@@ -20,7 +20,8 @@ CouchDB system_config doc:
          "pvt_node": "whistle_apps@kz.domain.tld"
       }
 
-
+ 
+  
 
 API call initiation:
 
