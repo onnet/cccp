@@ -1,4 +1,4 @@
-####CouchDB system_config doc:
+####CouchDB system_config doc example:
 
 ````
 {
