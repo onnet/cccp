@@ -35,6 +35,6 @@
 
       curl -X PUT -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps -d '{"data":{"cid":"78121234567", "outbound_cid":"+78122404700", "user_id":"e6da57c768533ebf0d349845394ccf26", "active":true}}'
 
-###Delete CID/PIN
+####Delete CID/PIN
 
       curl -X DELETE -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps/{DOC_ID} 
