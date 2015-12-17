@@ -111,6 +111,8 @@ handle_cast({'gen_listener',{'is_consuming', 'true'}}, #state{call=Call}=State) 
     {'noreply', State};
 handle_cast({'call_update', CallUpdate}, State) ->
     {'noreply', State#state{call=CallUpdate}};
+handle_cast('stop_platform_listener', State) ->
+    {'stop', 'normal', State};
 handle_cast(_Msg, State) ->
     {'noreply', State}.
 
@@ -174,6 +176,8 @@ handle_answer(JObj, Props) ->
             CallUpdate = whapps_call:kvs_store('consumer_pid', self(), props:get_value('call', Props)),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
             process_call(CallUpdate);
+        {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
+            gen_listener:cast(Srv, 'stop_platform_listener');
         _ -> 'ok'
     end.
 
