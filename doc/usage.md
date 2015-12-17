@@ -17,7 +17,7 @@ CouchDB system_config doc:
          "pvt_created": 63582529472,
          "pvt_modified": 63617518172,
          "pvt_type": "config",
-         "pvt_node": "whistle_apps@kz527.onnet.su"
+         "pvt_node": "whistle_apps@kz.domain.tld"
       }
 
 
