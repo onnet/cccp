@@ -2,7 +2,6 @@ CouchDB system_config doc:
 
       {
          "_id": "cccp",
-   
          "_rev": "22-e4e3d5976b62807677ea5e2692431f60",
    
          "default": {
