@@ -156,7 +156,6 @@ handle_event(_JObj, #state{call=Call, b_leg_number=BLegNumber}=_State) ->
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
-
     case wh_util:get_event_type(JObj) of
         {<<"resource">>, <<"offnet_resp">>} ->
             ResResp = wh_json:get_value(<<"Resource-Response">>, JObj),

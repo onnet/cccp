@@ -112,21 +112,31 @@ ensure_valid_caller_id(OutboundCID, AccountId) ->
 -spec get_number(whapps_call:call()) ->
                         {'num_to_dial', ne_binary()} |
                         'ok'.
+-spec get_number(whapps_call:call(), integer()) ->
+                        {'num_to_dial', ne_binary()} |
+                        'ok'.
 get_number(Call) ->
+    get_number(Call, 3).
+
+get_number(Call, 0) ->
+    lager:info("run out of attempts amount... hanging up"),
+    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
+    whapps_call_command:queued_hangup(Call);
+get_number(Call, Retries) ->
     RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>),
     case whapps_call_command:b_prompt_and_collect_digits(2, 17, <<"cf-enter_number">>, 3, Call) of
         {'ok', RedialCode} ->
             get_last_dialed_number(Call);
         {'ok', EnteredNumber} ->
-            verify_entered_number(EnteredNumber, Call);
+            verify_entered_number(EnteredNumber, Call, Retries);
         _Err ->
             lager:info("No Phone number obtained: ~p", [_Err]),
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-            whapps_call_command:queued_hangup(Call)
+            get_number(Call, Retries - 1)
     end.
 
--spec verify_entered_number(ne_binary(), whapps_call:call()) -> 'ok'.
-verify_entered_number(EnteredNumber, Call) ->
+-spec verify_entered_number(ne_binary(), whapps_call:call(), integer()) -> 'ok'.
+verify_entered_number(EnteredNumber, Call, Retries) ->
     Number = wnm_util:to_e164(re:replace(EnteredNumber, "[^0-9]", "", ['global', {'return', 'binary'}])),
     case cccp_allowed_callee(Number) of
         'true' ->
@@ -134,7 +144,7 @@ verify_entered_number(EnteredNumber, Call) ->
         _ ->
             lager:debug("Wrong number entered: ~p", [EnteredNumber]),
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-            whapps_call_command:queued_hangup(Call)
+            get_number(Call, Retries - 1)
     end.
 
 -spec get_last_dialed_number(whapps_call:call()) ->
