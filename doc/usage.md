@@ -23,10 +23,6 @@
 
 ````
 
-####API call initiation:
-
-      curl -X PUT -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps/autodial -d '{"data": { "a_leg_number": "1234567", "outbound_cid": "78123634500", "b_leg_number": "5579", "callback_delay": 10}}'
-
 ####Add PIN
 
       curl -X PUT -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps -d '{"data":{"pin":"150674729083", "outbound_cid":"+78122404700", "user_id":"e6da57c768533ebf0d349845394ccf26", "active":true}}'
@@ -38,3 +34,7 @@
 ####Delete CID/PIN
 
       curl -X DELETE -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps/{DOC_ID} 
+
+####API call initiation:
+
+      curl -X PUT -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps/autodial -d '{"data": { "a_leg_number": "1234567", "outbound_cid": "78123634500", "b_leg_number": "5579", "callback_delay": 10}}'
