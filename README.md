@@ -8,3 +8,4 @@ Could be good for road warriors:
 
 - relay long distance calls expences to your company instead of your own using callback;
 
+- initiate a call over API.
