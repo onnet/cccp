@@ -25,5 +25,5 @@
 
 ##API call initiation:
 
-curl -X PUT -H X-Auth-Token:da3fda2fb178365d206ab28b0a4a4a4c https://kz527.onnet.su:8443/v1/accounts/33ca3929ed585e0e423eb39e4ffe1452/cccps/autodial -d '{"data": { "a_leg_number": "9169944", "outbound_cid": "78122404700", "b_leg_number": "5579", "callback_delay": 20}}'
+curl -X PUT -H X-Auth-Token:{AUTH_TOKEN} https://{SERVER}:8443/v1/accounts/{ACCOUNT_ID}/cccps/autodial -d '{"data": { "a_leg_number": "1234567", "outbound_cid": "78123634500", "b_leg_number": "5579", "callback_delay": 10}}'
 
