@@ -1,7 +1,6 @@
 -ifndef(CCCP_HRL).
 
 -include_lib("whistle/include/wh_types.hrl").
--include_lib("whistle/include/wh_amqp.hrl").
 -include_lib("whistle/include/wh_log.hrl").
 -include_lib("whistle/include/wh_databases.hrl").
 -include_lib("whistle_number_manager/include/wh_number_manager.hrl").
@@ -11,10 +10,25 @@
 -define(APP_VERSION, <<"0.0.1">> ).
 
 -define(CCCP_CONFIG_CAT, <<"cccp">>).
--define(CCCPS_DB, <<"cccps">>).
 
 -define(TIMEOUT, <<"timeout">>).
 -define(DEFAULT_TIMEOUT, 15).
+
+-record(state, {customer_number :: ne_binary()
+                ,b_leg_number :: ne_binary()
+                ,call = whapps_call:new() :: whapps_call:call()
+                ,account_id :: ne_binary()
+                ,account_cid :: ne_binary()
+                ,queue :: api_binary()
+                ,parked_call_id :: ne_binary()
+                ,offnet_ctl_q :: ne_binary()
+                ,auth_doc_id :: ne_binary()
+                ,self = self() :: pid()
+                ,consumer_pid :: pid()
+                ,callback_delay :: integer()
+               }).
+
+-type state() :: #state{}.
 
 -define(CCCP_HRL, 'true').
 -endif.

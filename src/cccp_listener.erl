@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright 
+%%% @copyright
 %%% @doc
 %%%
 %%% @end
@@ -21,8 +21,6 @@
         ]).
 
 -include("cccp.hrl").
-
--record(state, {}).
 
 -define(BINDINGS, [{'self', []}
                   ,{'route', []}
@@ -174,4 +172,3 @@ validate_sysconfig(Key) ->
         'undefined' -> lager:warning("cccp hasn't been configured with ~s in system_config/~s; this is necessary", [Key, ?CCCP_CONFIG_CAT]);
         Value -> lager:debug("cccp using ~s for ~s", [wnm_util:normalize_number(Value), Key])
     end.
-

@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright 
+%%% @copyright
 %%% @doc
 %%%
 %%% @end
@@ -9,8 +9,8 @@
 -module(cccp_handlers).
 
 -export([handle_route_req/2
-        ,handle_route_win/2
-        ,handle_config_change/2
+         ,handle_route_win/2
+         ,handle_config_change/2
         ]).
 
 -include("cccp.hrl").
@@ -33,7 +33,7 @@ handle_route_req(JObj, Props) ->
 park_call(JObj, Props, Call) ->
     Q = props:get_value('queue', Props),
     Resp = props:filter_undefined([{<<"Msg-ID">>, wh_json:get_value(<<"Msg-ID">>, JObj)}
-                                  ,{<<"Method">>, <<"park">>}
+                                   ,{<<"Method">>, <<"park">>}
                                    | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
                                   ]),
     ServerId = wh_json:get_value(<<"Server-ID">>, JObj),
@@ -42,16 +42,13 @@ park_call(JObj, Props, Call) ->
     whapps_call:cache(Call, ?APP_NAME).
 
 -spec handle_route_win(wh_json:object(), wh_proplist()) -> 'ok'.
-handle_route_win(JObj, Props) ->
+handle_route_win(JObj, _Props) ->
     lager:info("CCCP has received a route win, taking control of the call"),
     'true' = wapi_route:win_v(JObj),
     CallId = wh_json:get_value(<<"Call-ID">>, JObj),
     case whapps_call:retrieve(CallId, ?APP_NAME) of
         {'ok', Call} ->
-            Call1 = whapps_call:kvs_store('consumer_pid', self(), whapps_call:from_route_win(JObj, Call)),
-            Call2 = whapps_call:kvs_store('server_pid', props:get_value('server', Props), Call1),
-            whapps_call:cache(Call2, ?APP_NAME),
-            handle_cccp_call(Call2);
+            handle_cccp_call(whapps_call:from_route_win(JObj, Call));
         {'error', _R} ->
             lager:debug("Unable to find call record during route_win")
     end.
@@ -59,7 +56,7 @@ handle_route_win(JObj, Props) ->
 -spec handle_config_change(wh_json:object(), wh_proplist()) -> 'ok'.
 handle_config_change(_JObj, _Props) ->
     'ok'.
-    
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -81,15 +78,12 @@ handle_callback(CallerNumber, Call) ->
     whapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, OutboundCID, AuthDocId] ->
-            JObj = {[{<<"Number">>, CallerNumber}
-                    ,{<<"Account-ID">>, AccountId}
-                    ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
-                    ,{<<"Auth-Doc-Id">>, AuthDocId}
-                   ]},
-            timer:sleep(2000),
+            JObj = wh_json:from_list([{<<"Number">>, CallerNumber}
+                                      ,{<<"Account-ID">>, AccountId}
+                                      ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
+                                      ,{<<"Auth-Doc-Id">>, AuthDocId}
+                                     ]),
             cccp_callback_sup:new(JObj);
         E ->
-            lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E]),
-            'ok'
+            lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E])
     end.
-
