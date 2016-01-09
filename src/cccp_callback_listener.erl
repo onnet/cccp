@@ -197,7 +197,13 @@ handle_resource_response(JObj, Props) ->
         {<<"dialplan">>,<<"route_win">>} ->
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             gen_listener:cast(Srv, {'call_update', whapps_call:from_route_win(JObj,call(Props))}),
-            gen_listener:add_binding(Srv, {'call',[{'callid', CallId},{restrict_to,[<<"CHANNEL_ANSWER">>,<<"CHANNEL_REPLACED">>]}]});
+            %% different binding till every call will use bowout
+            case props:get_value('b_leg_number', Props) of
+                'undefined' ->
+                    gen_listener:add_binding(Srv, {'call',[{'callid', CallId},{restrict_to,[<<"CHANNEL_REPLACED">>]}]});
+                _ ->
+                    gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]})
+            end;
         {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             gen_listener:rm_binding(Srv, {'call',[]}),
@@ -208,7 +214,7 @@ handle_resource_response(JObj, Props) ->
             CallUpdate = whapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}], whapps_call:from_route_req(JObj,call(Props))),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
             gen_listener:cast(Srv, {'parked', CallId, b_leg_number(props:set_value(call, CallUpdate,Props))});
-        {<<"call_event">>,<<"CHANNEL_DESTROY1">>} ->
+        {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
             gen_listener:cast(Srv, 'stop_callback');
         {<<"call_event">>,<<"CHANNEL_EXECUTE_COMPLETE">>} ->
             cccp_util:handle_disconnect(JObj, Props);
