@@ -13,7 +13,13 @@
          ,handle_disconnect/2
          ,get_number/1
          ,store_last_dialed/2
+         ,build_request/8
          ,bridge/7
+%%
+%% temporary till dtmf dubbing at bowout will be solved
+%%
+         ,verify_entered_number/3
+         ,get_last_dialed_number/1
         ]).
 
 -include("cccp.hrl").
@@ -53,8 +59,8 @@ handle_disconnect_cause(JObj, Call) ->
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
             whapps_call_command:queued_hangup(Call);
         UnhandledCause ->
-            lager:debug("Unhandled disconnect cause: ~p", [UnhandledCause]),
-            whapps_call_command:queued_hangup(Call)
+            lager:debug("unhandled disconnect cause: ~p", [UnhandledCause]),
+           ok % whapps_call_command:queued_hangup(Call)
     end.
 
 -spec authorize(ne_binary(), ne_binary()) ->
@@ -65,7 +71,7 @@ authorize(Value, View) ->
     ViewOptions = [{'key', Value}],
     case couch_mgr:get_results(?KZ_CCCPS_DB, View, ViewOptions) of
         {'ok',[]} ->
-            lager:info("Auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
+            lager:info("auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
             'empty';   %%% don't change. used in cb_cccps.erl
         {'ok', [JObj]} ->
             AccountId = wh_json:get_value([<<"value">>,<<"account_id">>], JObj),
@@ -75,7 +81,7 @@ authorize(Value, View) ->
              ,wh_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         _E ->
-            lager:info("Auth failed for ~p. Error occurred: ~p.", [Value, _E]),
+            lager:info("auth failed for ~p. Error occurred: ~p.", [Value, _E]),
             'error'
     end.
 
@@ -105,7 +111,7 @@ ensure_valid_caller_id(OutboundCID, AccountId) ->
                   ,<<"default_caller_id_number">>
                   ,wh_util:anonymous_caller_id_number()
                  ),
-            lager:debug("OutboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
+            lager:debug("outboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
             DefaultCID
     end.
 
@@ -130,7 +136,7 @@ get_number(Call, Retries) ->
         {'ok', EnteredNumber} ->
             verify_entered_number(EnteredNumber, Call, Retries);
         _Err ->
-            lager:info("No Phone number obtained: ~p", [_Err]),
+            lager:info("no phone number obtained: ~p", [_Err]),
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
             get_number(Call, Retries - 1)
     end.
@@ -142,7 +148,7 @@ verify_entered_number(EnteredNumber, Call, Retries) ->
         'true' ->
             check_restrictions(Number, Call);
         _ ->
-            lager:debug("Wrong number entered: ~p", [EnteredNumber]),
+            lager:debug("wrong number entered: ~p", [EnteredNumber]),
             whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
             get_number(Call, Retries - 1)
     end.
@@ -178,7 +184,7 @@ check_restrictions(Number, Call) ->
     AccountDb = wh_doc:account_db(Doc),
     case is_number_restricted(Number, AccountId, AccountDb) of
        'true' ->
-            lager:debug("Number ~p is restricted", [Number]),
+            lager:debug("number ~p is restricted", [Number]),
             hangup_unauthorized_call(Call);
        'false' ->
             is_user_restricted(Number, wh_json:get_value(<<"user_id">>, Doc), AccountDb, Call)
@@ -199,7 +205,7 @@ is_number_restricted(Number, DocId, AccountDb) ->
 is_user_restricted(Number, UserId, AccountDb, Call) ->
     case is_number_restricted(Number, UserId, AccountDb) of
         'true' ->
-            lager:debug("Number ~p is restricted", [Number]),
+            lager:debug("number ~p is restricted", [Number]),
             hangup_unauthorized_call(Call);
         'false' ->
             {'num_to_dial', Number}
@@ -222,26 +228,8 @@ cccp_allowed_callee(Number) ->
             'true'
     end.
 
--spec build_bridge_offnet_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> wh_proplist().
-build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, OutboundCID) ->
-    props:filter_undefined(
-      [{<<"Resource-Type">>, <<"audio">>}
-       ,{<<"Application-Name">>, <<"bridge">>}
-       ,{<<"Existing-Call-ID">>, CallId}
-       ,{<<"Call-ID">>, CallId}
-       ,{<<"Control-Queue">>, CtrlQ}
-       ,{<<"To-DID">>, ToDID}
-       ,{<<"Resource-Type">>, <<"originate">>}
-       ,{<<"Outbound-Caller-ID-Number">>, OutboundCID}
-       ,{<<"Outbound-Caller-ID-Name">>, OutboundCID}
-       ,{<<"Originate-Immediate">>, 'true'}
-       ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
-       ,{<<"Account-ID">>, AccountId}
-       | wh_api:default_headers(Q, ?APP_NAME, ?APP_VERSION)
-      ]).
-
--spec build_bridge_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary()) -> wh_proplist().
-build_bridge_request(CallId, ToDID, CID, CtrlQ, AccountId) ->
+-spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), boolean()) -> wh_proplist().
+build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
     {'ok', AccountDoc} = couch_mgr:open_cache_doc(?WH_ACCOUNTS_DB, AccountId),
     Realm = wh_json:get_value(<<"realm">>, AccountDoc),
     CCVs = [{<<"Account-ID">>, AccountId}
@@ -259,43 +247,26 @@ build_bridge_request(CallId, ToDID, CID, CtrlQ, AccountId) ->
 
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
-       ,{<<"Application-Name">>, <<"bridge">>}
+       ,{<<"Application-Name">>, Action}
+       ,{<<"Simplify-Loopback">>, BowOut}
        ,{<<"Endpoints">>, [wh_json:from_list(Endpoint)]}
-       ,{<<"Existing-Call-ID">>, CallId}
-       ,{<<"Control-Queue">>, CtrlQ}
        ,{<<"Resource-Type">>, <<"originate">>}
+       ,{<<"Control-Queue">>, CtrlQ}
+       ,{<<"Existing-Call-ID">>, CallId}
        ,{<<"Caller-ID-Number">>, CID}
        ,{<<"Caller-ID-Name">>, CID}
        ,{<<"Originate-Immediate">>, 'true'}
-       ,{<<"Msg-ID">>, wh_util:rand_hex_binary(6)}
+       ,{<<"Msg-ID">>, wh_util:rand_hex_binary(8)}
        ,{<<"Account-ID">>, AccountId}
        ,{<<"Dial-Endpoint-Method">>, <<"single">>}
        ,{<<"Continue-On-Fail">>, 'true'}
        ,{<<"Custom-Channel-Vars">>, wh_json:from_list(CCVs)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
-       | wh_api:default_headers(<<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
+       | wh_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
       ]).
 
--spec bridge_to_offnet(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge_to_offnet(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID) ->
-    Req = build_bridge_offnet_request(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID),
-    wapi_offnet_resource:publish_req(Req).
-
--spec bridge_to_loopback(ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge_to_loopback(CallId, ToDID, CID,  CtrlQ, AccountId) ->
-    Req = build_bridge_request(CallId, ToDID, CID, CtrlQ, AccountId),
+-spec bridge(ne_binary(), ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+bridge(CallId, ToDID, CID, _Q, CtrlQ, AccountId, _AccountCID) ->
+    Req = build_request(CallId, ToDID, CID, 'undefined', CtrlQ, AccountId, <<"bridge">>, 'false'),
     wapi_resource:publish_originate_req(Req).
 
--spec bridge(ne_binary(), ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge(CallId, ToDID, CID, Q, CtrlQ, AccountId, AccountCID) ->
-    case wnm_util:is_reconcilable(ToDID) of
-        'true' -> 
-            case wh_number_manager:lookup_account_by_number(ToDID) of
-                {'ok',_,_} ->
-                    bridge_to_loopback(CallId, ToDID, CID, CtrlQ, AccountId);
-                _ ->
-                    bridge_to_offnet(CallId, ToDID, Q, CtrlQ, AccountId, AccountCID)
-            end;
-        'false' ->
-            bridge_to_loopback(CallId, ToDID, CID, CtrlQ, AccountId)
-    end.
