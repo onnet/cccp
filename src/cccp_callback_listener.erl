@@ -114,7 +114,7 @@ handle_cast({'parked', CallId, ToDID}, State) ->
     P = bridge_to_final_destination(CallId, ToDID, State),
     lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, P]),
     {'noreply', State#state{parked_call_id = CallId}};
-handle_cast('stop_callback1', State) ->
+handle_cast('stop_callback', State) ->
     {'stop', 'normal', State};
 handle_cast(_Msg, State) ->
     {'noreply', State}.

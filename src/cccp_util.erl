@@ -60,7 +60,7 @@ handle_disconnect_cause(JObj, Call) ->
             whapps_call_command:queued_hangup(Call);
         UnhandledCause ->
             lager:debug("unhandled disconnect cause: ~p", [UnhandledCause]),
-           ok % whapps_call_command:queued_hangup(Call)
+            whapps_call_command:queued_hangup(Call)
     end.
 
 -spec authorize(ne_binary(), ne_binary()) ->
