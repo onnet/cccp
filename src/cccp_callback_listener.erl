@@ -69,7 +69,7 @@ init([JObj]) ->
                   ,auth_doc_id = AuthDocId
                   ,callback_delay = case is_integer(CallbackDelay) of
                                         'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
-                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 1) * ?MILLISECONDS_IN_SECOND
+                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 0) * ?MILLISECONDS_IN_SECOND
                                     end
                  }}.
 
