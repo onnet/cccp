@@ -69,7 +69,7 @@ init([JObj]) ->
                   ,auth_doc_id = AuthDocId
                   ,callback_delay = case is_integer(CallbackDelay) of
                                         'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
-                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
+                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 1) * ?MILLISECONDS_IN_SECOND
                                     end
                  }}.
 
@@ -197,13 +197,7 @@ handle_resource_response(JObj, Props) ->
         {<<"dialplan">>,<<"route_win">>} ->
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             gen_listener:cast(Srv, {'call_update', whapps_call:from_route_win(JObj,call(Props))}),
-            %% different binding till every call will use bowout
-            case props:get_value('b_leg_number', Props) of
-                'undefined' ->
-                    gen_listener:add_binding(Srv, {'call',[{'callid', CallId},{restrict_to,[<<"CHANNEL_REPLACED">>]}]});
-                _ ->
-                    gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]})
-            end;
+            gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]});
         {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
             CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             gen_listener:rm_binding(Srv, {'call',[]}),
@@ -255,51 +249,10 @@ b_leg_number(Props) ->
     case props:get_value('b_leg_number', Props) of
         'undefined' ->
             Call = props:get_value('call', Props),
-            {'num_to_dial', Number} = get_number(Call),
+            {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
         BLegNumber -> BLegNumber
     end.
 
 call(Props) ->
     props:get_value('call', Props).
-
-%%%===================================================================
-%%% temporary till dtmf dubbing at bowout will be solved
-%%%===================================================================
-
--spec get_number(whapps_call:call()) ->
-                        {'num_to_dial', ne_binary()} |
-                        'ok'.
--spec get_number(whapps_call:call(), integer()) ->
-                        {'num_to_dial', ne_binary()} |
-                        'ok'.
-get_number(Call) ->
-    get_number(Call, 3).
-
-get_number(Call, 0) ->
-    lager:info("run out of attempts amount... hanging up"),
-    whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-    whapps_call_command:queued_hangup(Call);
-get_number(Call, Retries) ->
-    RedialCode = whapps_config:get(?CCCP_CONFIG_CAT, <<"last_number_redial_code">>, <<"*0">>),
-    case whapps_call_command:b_prompt_and_collect_digits(2, 17, <<"cf-enter_number">>, 3, Call) of
-        {'ok', RedialCode} ->
-            cccp_util:get_last_dialed_number(Call);
-        {'ok', EnteredNumber} ->
-            cccp_util:verify_entered_number(every_sec(EnteredNumber), Call, Retries);
-        _Err ->
-            lager:info("no phone number obtained: ~p", [_Err]),
-            whapps_call_command:prompt(<<"hotdesk-invalid_entry">>, Call),
-            get_number(Call, Retries - 1)
-    end.
-
-every_sec(Number) when is_binary(Number) ->
-    every_sec(wh_util:to_list(Number));
-every_sec(Number) ->
-    every_sec(Number, []).
-
-every_sec([], Acc) -> Acc;
-every_sec([X], Acc) -> Acc ++ [X];
-every_sec([X,_], Acc) -> Acc ++ [X];
-every_sec([X,_|T], Acc) -> every_sec(T, Acc ++ [X]).
-
