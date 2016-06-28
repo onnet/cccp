@@ -76,7 +76,7 @@ handle_cccp_call(Call) ->
 -spec handle_callback(ne_binary(), whapps_call:call()) -> 'ok'.
 handle_callback(CallerNumber, Call) ->
     %% looks like something wrong 'cause hangup does't work without prior answering
-    whapps_call_command:answer(Call),
+  %  whapps_call_command:answer(Call),
     whapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, OutboundCID, AuthDocId] ->
