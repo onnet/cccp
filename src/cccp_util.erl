@@ -224,7 +224,7 @@ cccp_allowed_callee(Number) ->
 
 -spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), boolean()) -> kz_proplist().
 build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
-    {'ok', AccountDoc} = kz_datamgr:open_cache_doc(?WH_ACCOUNTS_DB, AccountId),
+    {'ok', AccountDoc} = kz_datamgr:open_cache_doc(?KZ_ACCOUNTS_DB, AccountId),
     Realm = kz_json:get_value(<<"realm">>, AccountDoc),
     CCVs = [{<<"Account-ID">>, AccountId}
             ,{<<"Authorizing-ID">>, AccountId}
