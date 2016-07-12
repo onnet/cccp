@@ -187,7 +187,7 @@ originate_park(#state{account_id=AccountId
         _ -> 'false'
     end,
     Req = cccp_util:build_request(CallId, ToDID, CID, Q, 'undefined', AccountId, <<"park">>, BowOut),
-    wapi_resource:publish_originate_req(Req).
+    kapi_resource:publish_originate_req(Req).
 
 -spec handle_resource_response(kz_json:object(), kz_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
