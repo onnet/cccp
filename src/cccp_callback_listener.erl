@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright
+%%% @copyright (C) 2012-2016, 2600Hz
 %%% @doc
 %%%
 %%% @end
@@ -11,21 +11,22 @@
 -behaviour(gen_listener).
 
 -export([start_link/1
-         ,handle_resource_response/2
+        ,handle_resource_response/2
         ]).
 -export([init/1
-         ,handle_call/3
-         ,handle_cast/2
-         ,handle_info/2
-         ,handle_event/2
-         ,terminate/2
-         ,code_change/3
+        ,handle_call/3
+        ,handle_cast/2
+        ,handle_info/2
+        ,handle_event/2
+        ,terminate/2
+        ,code_change/3
         ]).
 
 -include("cccp.hrl").
 
--define(BINDINGS, [{'self', []}
-                  ]).
+-define(SERVER, ?MODULE).
+
+-define(BINDINGS, [{'self', []}]).
 -define(RESPONDERS, [{{?MODULE, 'handle_resource_response'},[{<<"*">>, <<"*">>}]}
                     ,{{'cccp_util', 'relay_amqp'}, [{<<"*">>, <<"*">>}]}
                     ]).
@@ -35,42 +36,41 @@
 -define(CONSUME_OPTIONS, []).
 
 %%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
-%% @end
+%% @doc Starts the server
 %%--------------------------------------------------------------------
--spec start_link([any()]) -> startlink_ret().
+-spec start_link(list()) -> startlink_ret().
 start_link(JObj) ->
-    gen_listener:start_link(?MODULE, [{'responders', ?RESPONDERS}
-                                      ,{'bindings', ?BINDINGS}
-                                      ,{'queue_name', ?QUEUE_NAME}
-                                      ,{'queue_options', ?QUEUE_OPTIONS}
-                                      ,{'consume_options', ?CONSUME_OPTIONS}
+    gen_listener:start_link(?SERVER, [{'responders', ?RESPONDERS}
+                                     ,{'bindings', ?BINDINGS}
+                                     ,{'queue_name', ?QUEUE_NAME}
+                                     ,{'queue_options', ?QUEUE_OPTIONS}
+                                     ,{'consume_options', ?CONSUME_OPTIONS}
                                      ], [JObj]).
 
--spec init(wh_json:object()) -> {'ok', state()}.
+-spec init(kz_json:object()) -> {'ok', state()}.
 init([JObj]) ->
-    CustomerNumber = wh_json:get_value(<<"Number">>, JObj),
-    BLegNumber = wh_json:get_value(<<"B-Leg-Number">>, JObj),
-    AccountId = wh_json:get_value(<<"Account-ID">>, JObj),
-    OutboundCID = wh_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
-    AuthDocId = wh_json:get_value(<<"Auth-Doc-Id">>, JObj),
-    CallbackDelay = wh_json:get_value(<<"Callback-Delay">>, JObj),
+    CustomerNumber = kz_json:get_value(<<"Number">>, JObj),
+    BLegNumber = kz_json:get_value(<<"B-Leg-Number">>, JObj),
+    AccountId = kz_json:get_value(<<"Account-ID">>, JObj),
+    OutboundCID = kz_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
+    AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
+    CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
+
+    RealCallbackDelay =
+        case is_integer(CallbackDelay) of
+            'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
+            'false' -> kapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
+        end,
 
     {'ok', #state{customer_number = CustomerNumber
-                  ,parked_call_id = 'undefined'
-                  ,b_leg_number = BLegNumber
-                  ,account_id = AccountId
-                  ,account_cid = OutboundCID
-                  ,call = whapps_call:new()
-                  ,queue = 'undefined'
-                  ,auth_doc_id = AuthDocId
-                  ,callback_delay = case is_integer(CallbackDelay) of
-                                        'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
-                                        'false' -> whapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 0) * ?MILLISECONDS_IN_SECOND
-                                    end
+                 ,parked_call_id = 'undefined'
+                 ,b_leg_number = BLegNumber
+                 ,account_id = AccountId
+                 ,account_cid = OutboundCID
+                 ,call = kapps_call:new()
+                 ,queue = 'undefined'
+                 ,auth_doc_id = AuthDocId
+                 ,callback_delay = RealCallbackDelay
                  }}.
 
 %%--------------------------------------------------------------------
@@ -111,8 +111,8 @@ handle_cast({'call_update', CallUpdate}, State) ->
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q=CtrlQ}};
 handle_cast({'parked', CallId, ToDID}, State) ->
-    P = bridge_to_final_destination(CallId, ToDID, State),
-    lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, P]),
+    _P = bridge_to_final_destination(CallId, ToDID, State),
+    lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, _P]),
     {'noreply', State#state{parked_call_id = CallId}};
 handle_cast('stop_callback', State) ->
     {'stop', 'normal', State};
@@ -174,12 +174,12 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec originate_park(state()) -> 'ok'.
 originate_park(#state{account_id=AccountId
-                      ,parked_call_id=CallId
-                      ,customer_number=ToDID
-                      ,account_cid=CID
-                      ,queue=Q
-                      ,b_leg_number=BLegNumber
-                      ,callback_delay=CallbackDelay
+                     ,parked_call_id=CallId
+                     ,customer_number=ToDID
+                     ,account_cid=CID
+                     ,queue=Q
+                     ,b_leg_number=BLegNumber
+                     ,callback_delay=CallbackDelay
                      }) ->
     _ = timer:sleep(CallbackDelay),
     BowOut = case BLegNumber of
@@ -189,23 +189,23 @@ originate_park(#state{account_id=AccountId
     Req = cccp_util:build_request(CallId, ToDID, CID, Q, 'undefined', AccountId, <<"park">>, BowOut),
     wapi_resource:publish_originate_req(Req).
 
--spec handle_resource_response(wh_json:object(), wh_proplist()) -> 'ok'.
+-spec handle_resource_response(kz_json:object(), wh_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
-    CallId = wh_json:get_value(<<"Call-ID">>, JObj),
-    case wh_util:get_event_type(JObj) of
+    CallId = kz_json:get_value(<<"Call-ID">>, JObj),
+    case kz_util:get_event_type(JObj) of
         {<<"dialplan">>,<<"route_win">>} ->
-            CallId = wh_json:get_value(<<"Call-ID">>, JObj),
-            gen_listener:cast(Srv, {'call_update', whapps_call:from_route_win(JObj,call(Props))}),
+            gen_listener:cast(Srv, {'call_update', kapps_call:from_route_win(JObj,call(Props))}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]});
         {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
-            CallId = wh_json:get_value(<<"Call-ID">>, JObj),
             gen_listener:rm_binding(Srv, {'call',[]}),
-            CallIdNew = wh_json:get_value(<<"Replaced-By">>, JObj),
+            CallIdNew = kz_json:get_value(<<"Replaced-By">>, JObj),
             gen_listener:cast(Srv, {'call_id_update', CallIdNew}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallIdNew}]});
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
-            CallUpdate = whapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}], whapps_call:from_route_req(JObj,call(Props))),
+            CallUpdate = kapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}]
+                                                      ,kapps_call:from_route_req(JObj,call(Props))
+                                                      ),
             gen_listener:cast(Srv, {'call_update', CallUpdate}),
             gen_listener:cast(Srv, {'parked', CallId, b_leg_number(props:set_value(call, CallUpdate,Props))});
         {<<"call_event">>,<<"CHANNEL_DESTROY">>} ->
@@ -217,11 +217,11 @@ handle_resource_response(JObj, Props) ->
         _ -> 'ok'
     end.
 
--spec handle_originate_response(wh_json:object(), server_ref()) -> 'ok'.
+-spec handle_originate_response(kz_json:object(), server_ref()) -> 'ok'.
 handle_originate_response(JObj, Props) ->
     Srv = props:get_value('server', Props),
-    case {wh_json:get_value(<<"Application-Name">>, JObj)
-          ,wh_json:get_value(<<"Application-Response">>, JObj)
+    case {kz_json:get_value(<<"Application-Name">>, JObj)
+          ,kz_json:get_value(<<"Application-Response">>, JObj)
          }
     of
         {<<"bridge">>, <<"SUCCESS">>} ->
@@ -231,11 +231,11 @@ handle_originate_response(JObj, Props) ->
 
 -spec bridge_to_final_destination(ne_binary(), ne_binary(), state()) -> 'ok'.
 bridge_to_final_destination(CallId, ToDID, #state{queue=Q
-                                                  ,offnet_ctl_q=CtrlQ
-                                                  ,account_id=AccountId
-                                                  ,account_cid=AccountCID
-                                                  ,auth_doc_id=AccountDocId
-                                                  ,customer_number=CustomerNumber
+                                                 ,offnet_ctl_q=CtrlQ
+                                                 ,account_id=AccountId
+                                                 ,account_cid=AccountCID
+                                                 ,auth_doc_id=AccountDocId
+                                                 ,customer_number=CustomerNumber
                                                  }) ->
 
     cccp_util:bridge(CallId, ToDID, CustomerNumber, Q, CtrlQ, AccountId, AccountCID),

@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @copyright
+%%% @copyright (C) 2012-2016, 2600Hz
 %%% @doc
 %%%
 %%% @end
@@ -12,18 +12,20 @@
 
 -export([start_link/0]).
 -export([init/1
-         ,handle_call/3
-         ,handle_cast/2
-         ,handle_info/2
-         ,handle_event/2
-         ,terminate/2
-         ,code_change/3
+        ,handle_call/3
+        ,handle_cast/2
+        ,handle_info/2
+        ,handle_event/2
+        ,terminate/2
+        ,code_change/3
         ]).
 
 -include("cccp.hrl").
 
+-define(SERVER, ?MODULE).
+
 -define(BINDINGS, [{'self', []}
-                  ,{'route', []}
+                  ,{'route', [{'restrict_to', ?RESOURCE_TYPES_HANDLED}]}
                   ,{'conf', [{'doc_type', <<"sys_info">>}]}
                   ]).
 -define(RESPONDERS, [{{'cccp_handlers', 'handle_route_req'}, [{<<"dialplan">>, <<"route_req">>}]}
@@ -39,19 +41,15 @@
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
-%% @end
+%% @doc Starts the server
 %%--------------------------------------------------------------------
+-spec start_link() -> startlink_ret().
 start_link() ->
-    gen_listener:start_link(?MODULE, [
-                                      {'bindings', ?BINDINGS}
-                                      ,{'responders', ?RESPONDERS}
-                                      ,{'queue_name', ?QUEUE_NAME}       % optional to include
-                                      ,{'queue_options', ?QUEUE_OPTIONS} % optional to include
-                                      ,{'consume_options', ?CONSUME_OPTIONS} % optional to include
+    gen_listener:start_link(?SERVER, [{'bindings', ?BINDINGS}
+                                     ,{'responders', ?RESPONDERS}
+                                     ,{'queue_name', ?QUEUE_NAME}       % optional to include
+                                     ,{'queue_options', ?QUEUE_OPTIONS} % optional to include
+                                     ,{'consume_options', ?CONSUME_OPTIONS} % optional to include
                                       %%,{basic_qos, 1}                % only needed if prefetch controls
                                      ], []).
 
@@ -168,7 +166,7 @@ validate_sysconfig() ->
 
 -spec validate_sysconfig(ne_binary()) -> 'ok'.
 validate_sysconfig(Key) ->
-    case whapps_config:get(?CCCP_CONFIG_CAT, Key) of
+    case kapps_config:get(?CCCP_CONFIG_CAT, Key) of
         'undefined' -> lager:warning("cccp hasn't been configured with ~s in system_config/~s; this is necessary", [Key, ?CCCP_CONFIG_CAT]);
-        Value -> lager:debug("cccp using ~s for ~s", [wnm_util:normalize_number(Value), Key])
+        Value -> lager:debug("cccp using ~s for ~s", [knm_converters:normalize(Value), Key])
     end.
