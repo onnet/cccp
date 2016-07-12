@@ -261,6 +261,6 @@ build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
 
 -spec bridge(ne_binary(), ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
 bridge(CallId, ToDID, CID, _Q, CtrlQ, AccountId, _AccountCID) ->
-    Req = build_request(CallId, ToDID, CID, 'undefined', CtrlQ, AccountId, <<"bridge">>, 'false'),
+    Req = build_request(CallId, ToDID, CID, 'undefined', CtrlQ, AccountId, <<"bridge">>, 'true'),
     kapi_resource:publish_originate_req(Req).
 
