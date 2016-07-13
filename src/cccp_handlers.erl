@@ -78,7 +78,7 @@ handle_callback(CallerNumber, Call) ->
     kapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, UserId, AuthDocId] ->
-            JObj = kz_json:from_list([{<<"Number">>, CallerNumber}
+            JObj = kz_json:from_list([{<<"A-Leg-Number">>, CallerNumber}
                                      ,{<<"Account-ID">>, AccountId}
                                      ,{<<"Authorizing-ID">>, UserId}
                                      ,{<<"Auth-Doc-Id">>, AuthDocId}

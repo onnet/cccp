@@ -14,7 +14,7 @@
 -define(TIMEOUT, <<"timeout">>).
 -define(DEFAULT_TIMEOUT, 15).
 
--record(state, {customer_number :: ne_binary()
+-record(state, {a_leg_number :: ne_binary()
                ,b_leg_number :: ne_binary()
                ,call = kapps_call:new() :: kapps_call:call()
                ,account_id :: ne_binary()

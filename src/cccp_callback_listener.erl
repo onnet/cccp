@@ -49,12 +49,14 @@ start_link(JObj) ->
 
 -spec init(kz_json:object()) -> {'ok', state()}.
 init([JObj]) ->
-    CustomerNumber = kz_json:get_value(<<"Number">>, JObj),
+    ALegNumber = kz_json:get_value(<<"A-Leg-Number">>, JObj),
     BLegNumber = kz_json:get_value(<<"B-Leg-Number">>, JObj),
     AccountId = kz_json:get_value(<<"Account-ID">>, JObj),
     AuthorizingId = kz_json:get_value(<<"Authorizing-ID">>, JObj),
     AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
     CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
+
+lager:info("IAM init JObj: ~p",[JObj]),
 
     RealCallbackDelay =
         case is_integer(CallbackDelay) of
@@ -62,7 +64,7 @@ init([JObj]) ->
             'false' -> kapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
         end,
 
-    {'ok', #state{customer_number = CustomerNumber
+    {'ok', #state{a_leg_number = ALegNumber
                  ,parked_call_id = 'undefined'
                  ,b_leg_number = BLegNumber
                  ,account_id = AccountId
@@ -175,7 +177,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec originate_park(state()) -> 'ok'.
 originate_park(#state{account_id=AccountId
                      ,parked_call_id=CallId
-                     ,customer_number=ToDID
+                     ,a_leg_number=ToDID
                      ,authorizing_id=AuthorizingId
                      ,queue=Q
                      ,callback_delay=CallbackDelay
