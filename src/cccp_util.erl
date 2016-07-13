@@ -207,7 +207,7 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
                ],
-    props:filter_undefined(
+Res =    props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Application-Name">>, Action}
        ,{<<"Simplify-Loopback">>, 'false'}
@@ -223,7 +223,7 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
        ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
-      ]).
+      ]), lager:info("IAM build_request Res: ~p",[Res]), Res.
 
 -spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
 bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId) ->
