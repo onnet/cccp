@@ -18,7 +18,7 @@
                ,b_leg_number :: ne_binary()
                ,call = kapps_call:new() :: kapps_call:call()
                ,account_id :: ne_binary()
-               ,account_cid :: ne_binary()
+               ,authorizing_id :: ne_binary()
                ,queue :: api_binary()
                ,parked_call_id :: ne_binary()
                ,offnet_ctl_q :: ne_binary()

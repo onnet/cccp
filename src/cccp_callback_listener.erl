@@ -52,7 +52,7 @@ init([JObj]) ->
     CustomerNumber = kz_json:get_value(<<"Number">>, JObj),
     BLegNumber = kz_json:get_value(<<"B-Leg-Number">>, JObj),
     AccountId = kz_json:get_value(<<"Account-ID">>, JObj),
-    OutboundCID = kz_json:get_value(<<"Outbound-Caller-ID-Number">>, JObj),
+    AuthorizingId = kz_json:get_value(<<"Authorizing-ID">>, JObj),
     AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
     CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
 
@@ -66,7 +66,7 @@ init([JObj]) ->
                  ,parked_call_id = 'undefined'
                  ,b_leg_number = BLegNumber
                  ,account_id = AccountId
-                 ,account_cid = OutboundCID
+                 ,authorizing_id = AuthorizingId
                  ,call = kapps_call:new()
                  ,queue = 'undefined'
                  ,auth_doc_id = AuthDocId
@@ -176,17 +176,12 @@ code_change(_OldVsn, State, _Extra) ->
 originate_park(#state{account_id=AccountId
                      ,parked_call_id=CallId
                      ,customer_number=ToDID
-                     ,account_cid=CID
+                     ,authorizing_id=AuthorizingId
                      ,queue=Q
-                     ,b_leg_number=BLegNumber
                      ,callback_delay=CallbackDelay
                      }) ->
     _ = timer:sleep(CallbackDelay),
-    BowOut = case BLegNumber of
-        'undefined' -> 'true';
-        _ -> 'false'
-    end,
-    Req = cccp_util:build_request(CallId, ToDID, CID, Q, 'undefined', AccountId, <<"park">>, BowOut),
+    Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>),
     kapi_resource:publish_originate_req(Req).
 
 -spec handle_resource_response(kz_json:object(), kz_proplist()) -> 'ok'.
@@ -230,15 +225,14 @@ handle_originate_response(JObj, Props) ->
     end.
 
 -spec bridge_to_final_destination(ne_binary(), ne_binary(), state()) -> 'ok'.
-bridge_to_final_destination(CallId, ToDID, #state{queue=Q
-                                                 ,offnet_ctl_q=CtrlQ
+bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
                                                  ,account_id=AccountId
-                                                 ,account_cid=AccountCID
+                                                 ,authorizing_id=AuthorizingId
                                                  ,auth_doc_id=AccountDocId
-                                                 ,customer_number=CustomerNumber
+                                                 ,customer_number=_CustomerNumber
                                                  }) ->
 
-    cccp_util:bridge(CallId, ToDID, CustomerNumber, Q, CtrlQ, AccountId, AccountCID),
+    cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId),
 
     case AccountDocId of
         'undefined' -> 'ok';

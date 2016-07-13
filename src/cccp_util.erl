@@ -13,15 +13,15 @@
         ,handle_disconnect/2
         ,get_number/1
         ,store_last_dialed/2
-        ,build_request/8
-        ,bridge/7
+        ,build_request/7
+        ,bridge/5
         ,verify_entered_number/3
         ,get_last_dialed_number/1
         ]).
 
 -include("cccp.hrl").
 
--define(DEFAULT_CALLEE_REGEX, <<"^\\+?\\d{7,}$">>).
+-define(DEFAULT_CALLEE_REGEX, <<"^\\+?\\d{3,}$">>).
 
 -spec relay_amqp(kz_json:object(), kz_proplist()) -> 'ok'.
 relay_amqp(JObj, Props) ->
@@ -72,41 +72,14 @@ authorize(Value, View) ->
             'empty';   %%% don't change. used in cb_cccps.erl
         {'ok', [JObj]} ->
             AccountId = kz_json:get_value([<<"value">>,<<"account_id">>], JObj),
-            OutboundCID = kz_json:get_value([<<"value">>,<<"outbound_cid">>], JObj),
+            UserId = kz_json:get_value([<<"value">>,<<"user_id">>], JObj),
             [AccountId
-            ,legalize_outbound_cid(OutboundCID, AccountId)
+            ,UserId
             ,kz_json:get_value([<<"value">>,<<"id">>], JObj)
             ];
         _E ->
             lager:info("auth failed for ~p. Error occurred: ~p.", [Value, _E]),
             'error'
-    end.
-
--spec legalize_outbound_cid(ne_binary(), ne_binary()) -> ne_binary().
-legalize_outbound_cid(OutboundCID, AccountId) ->
-    case kapps_config:get_is_true(?CCCP_CONFIG_CAT, <<"ensure_valid_caller_id">>, 'true') of
-        'true' -> ensure_valid_caller_id(OutboundCID, AccountId);
-        'false' -> OutboundCID
-    end.
-
--spec ensure_valid_caller_id(ne_binary(), ne_binary()) -> ne_binary().
-ensure_valid_caller_id(OutboundCID, AccountId) ->
-    AccountNumbersList = knm_numbers:account_listing(kz_util:format_account_id(AccountId, 'encoded')),
-    case lists:member(knm_converters:normalize(OutboundCID)
-                     ,props:get_keys(AccountNumbersList)
-                     )
-    of
-        'true' ->
-            OutboundCID;
-        'false' ->
-            DefaultCID =
-                kapps_config:get(
-                  ?CCCP_CONFIG_CAT
-                                ,<<"default_caller_id_number">>
-                                ,kz_util:anonymous_caller_id_number()
-                 ),
-            lager:debug("outboundCID ~p is out of account's list; changing to application's default: ~p", [OutboundCID, DefaultCID]),
-            DefaultCID
     end.
 
 -spec get_number(kapps_call:call()) ->
@@ -152,7 +125,7 @@ verify_entered_number(EnteredNumber, Call, Retries) ->
                                     'ok'.
 get_last_dialed_number(Call) ->
     DocId = kapps_call:kvs_fetch('auth_doc_id', Call),
-    {'ok', Doc} = kz_datamgr:open_doc(<<"cccps">>, DocId),
+    {'ok', Doc} = kz_datamgr:open_doc(?KZ_CCCPS_DB, DocId),
     LastDialed = kz_json:get_value(<<"pvt_last_dialed">>, Doc),
     case cccp_allowed_callee(LastDialed) of
         'false' ->
@@ -164,7 +137,7 @@ get_last_dialed_number(Call) ->
 
 -spec store_last_dialed(ne_binary(), ne_binary()) -> 'ok'.
 store_last_dialed(Number, DocId) ->
-    {'ok', Doc} = kz_datamgr:update_doc(<<"cccps">>, DocId, [{<<"pvt_last_dialed">>, Number}]),
+    {'ok', Doc} = kz_datamgr:update_doc(?KZ_CCCPS_DB, DocId, [{<<"pvt_last_dialed">>, Number}]),
     _ = kz_datamgr:update_doc(kz_doc:account_db(Doc), DocId, [{<<"pvt_last_dialed">>, Number}]),
     'ok'.
 
@@ -173,7 +146,7 @@ store_last_dialed(Number, DocId) ->
                                 'ok'.
 check_restrictions(Number, Call) ->
     DocId = kapps_call:kvs_fetch('auth_doc_id', Call),
-    {'ok', Doc} = kz_datamgr:open_doc(<<"cccps">>, DocId),
+    {'ok', Doc} = kz_datamgr:open_doc(?KZ_CCCPS_DB, DocId),
     AccountId = kz_doc:account_id(Doc),
     AccountDb = kz_doc:account_db(Doc),
     case is_number_restricted(Number, AccountId, AccountDb) of
@@ -222,14 +195,11 @@ cccp_allowed_callee(Number) ->
             'true'
     end.
 
--spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), boolean()) -> kz_proplist().
-build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
-    {'ok', AccountDoc} = kz_datamgr:open_cache_doc(?KZ_ACCOUNTS_DB, AccountId),
-    Realm = kz_json:get_value(<<"realm">>, AccountDoc),
+-spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> kz_proplist().
+build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
     CCVs = [{<<"Account-ID">>, AccountId}
-            ,{<<"Authorizing-ID">>, AccountId}
-            ,{<<"Authorizing-Type">>, <<"device">>}
-            ,{<<"Presence-ID">>, <<CID/binary, "@", Realm/binary>>}
+            ,{<<"Authorizing-ID">>, AuthorizingId}
+            ,{<<"Authorizing-Type">>, <<"user">>}
            ],
 
     Endpoint = [
@@ -242,13 +212,11 @@ build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Application-Name">>, Action}
-       ,{<<"Simplify-Loopback">>, BowOut}
+       ,{<<"Simplify-Loopback">>, 'false'}
        ,{<<"Endpoints">>, [kz_json:from_list(Endpoint)]}
        ,{<<"Resource-Type">>, <<"originate">>}
        ,{<<"Control-Queue">>, CtrlQ}
        ,{<<"Existing-Call-ID">>, CallId}
-       ,{<<"Caller-ID-Number">>, CID}
-       ,{<<"Caller-ID-Name">>, CID}
        ,{<<"Originate-Immediate">>, 'true'}
        ,{<<"Msg-ID">>, kz_util:rand_hex_binary(8)}
        ,{<<"Account-ID">>, AccountId}
@@ -259,8 +227,8 @@ build_request(CallId, ToDID, CID, Q, CtrlQ, AccountId, Action, BowOut) ->
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
       ]).
 
--spec bridge(ne_binary(), ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge(CallId, ToDID, CID, _Q, CtrlQ, AccountId, _AccountCID) ->
-    Req = build_request(CallId, ToDID, CID, 'undefined', CtrlQ, AccountId, <<"bridge">>, 'true'),
+-spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId) ->
+    Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>),
     kapi_resource:publish_originate_req(Req).
 
