@@ -229,7 +229,6 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
                                                  ,account_id=AccountId
                                                  ,authorizing_id=AuthorizingId
                                                  ,auth_doc_id=AccountDocId
-                                                 ,customer_number=_CustomerNumber
                                                  }) ->
 
     cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId),
