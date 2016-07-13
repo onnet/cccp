@@ -238,6 +238,7 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
         _ -> cccp_util:store_last_dialed(ToDID, AccountDocId)
     end.
 
+-spec b_leg_number(kz_proplist()) -> ne_binary().
 b_leg_number(Props) ->
     case props:get_value('b_leg_number', Props) of
         'undefined' ->
@@ -247,5 +248,6 @@ b_leg_number(Props) ->
         BLegNumber -> BLegNumber
     end.
 
+-spec call(kz_proplist()) -> kapps_call:call().
 call(Props) ->
     props:get_value('call', Props).
