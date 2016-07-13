@@ -195,7 +195,6 @@ handle_resource_response(JObj, Props) ->
         {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
             gen_listener:rm_binding(Srv, {'call',[]}),
             CallIdNew = kz_json:get_value(<<"Replaced-By">>, JObj),
-            gen_listener:cast(Srv, {'call_id_update', CallIdNew}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallIdNew}]});
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             CallUpdate = kapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}]
@@ -230,9 +229,7 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
                                                  ,authorizing_id=AuthorizingId
                                                  ,auth_doc_id=AccountDocId
                                                  }) ->
-
     cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId),
-
     case AccountDocId of
         'undefined' -> 'ok';
         _ -> cccp_util:store_last_dialed(ToDID, AccountDocId)

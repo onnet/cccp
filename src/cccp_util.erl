@@ -201,14 +201,12 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
             ,{<<"Authorizing-ID">>, AuthorizingId}
             ,{<<"Authorizing-Type">>, <<"user">>}
            ],
-
     Endpoint = [
                 {<<"Invite-Format">>, <<"loopback">>}
                ,{<<"Route">>,  ToDID}
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
                ],
-
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Application-Name">>, Action}
