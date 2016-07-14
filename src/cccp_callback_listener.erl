@@ -56,8 +56,6 @@ init([JObj]) ->
     AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
     CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
 
-lager:info("IAM init JObj: ~p",[JObj]),
-
     RealCallbackDelay =
         case is_integer(CallbackDelay) of
             'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
@@ -194,10 +192,6 @@ handle_resource_response(JObj, Props) ->
         {<<"dialplan">>,<<"route_win">>} ->
             gen_listener:cast(Srv, {'call_update', kapps_call:from_route_win(JObj,call(Props))}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]});
-        {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
-            gen_listener:rm_binding(Srv, {'call',[]}),
-            CallIdNew = kz_json:get_value(<<"Replaced-By">>, JObj),
-            gen_listener:add_binding(Srv, {'call',[{'callid', CallIdNew}]});
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             CallUpdate = kapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}]
                                                       ,kapps_call:from_route_req(JObj,call(Props))
