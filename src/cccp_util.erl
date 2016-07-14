@@ -13,8 +13,8 @@
         ,handle_disconnect/2
         ,get_number/1
         ,store_last_dialed/2
-        ,build_request/7
-        ,bridge/5
+        ,build_request/10
+        ,bridge/8
         ,verify_entered_number/3
         ,get_last_dialed_number/1
         ]).
@@ -71,11 +71,10 @@ authorize(Value, View) ->
             lager:info("auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
             'empty';   %%% don't change. used in cb_cccps.erl
         {'ok', [JObj]} ->
-            AccountId = kz_json:get_value([<<"value">>,<<"account_id">>], JObj),
-            UserId = kz_json:get_value([<<"value">>,<<"user_id">>], JObj),
-            [AccountId
-            ,UserId
+            [kz_json:get_value([<<"value">>,<<"account_id">>], JObj)
+            ,kz_json:get_value([<<"value">>,<<"user_id">>], JObj)
             ,kz_json:get_value([<<"value">>,<<"id">>], JObj)
+            ,kz_json:get_binary_boolean([<<"value">>,<<"retain_cid">>], JObj, <<"false">>)
             ];
         _E ->
             lager:info("auth failed for ~p. Error occurred: ~p.", [Value, _E]),
@@ -195,20 +194,27 @@ cccp_allowed_callee(Number) ->
             'true'
     end.
 
--spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> kz_proplist().
-build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
+-spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), boolean(), ne_binary(), ne_binary()) -> kz_proplist().
+build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainCID, RetainName, RetainNumber) ->
     CCVs = [{<<"Account-ID">>, AccountId}
             ,{<<"Authorizing-ID">>, AuthorizingId}
             ,{<<"Authorizing-Type">>, <<"user">>}
+            ,{<<"Retain-CID">>, RetainCID}
            ],
+    CSHs = [{<<"Diversions">>, [<<"<sip:78122404700@1.2.3.4>;reason=unconditional">>]}],
     Endpoint = [
                 {<<"Invite-Format">>, <<"loopback">>}
                ,{<<"Route">>,  ToDID}
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
+               ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(CSHs)}
                ],
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
+
+       ,{<<"Caller-ID-Name">>, RetainName}
+       ,{<<"Caller-ID-Number">>, RetainNumber}
+
        ,{<<"Application-Name">>, Action}
        ,{<<"Endpoints">>, [kz_json:from_list(Endpoint)]}
        ,{<<"Resource-Type">>, <<"originate">>}
@@ -220,11 +226,12 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
        ,{<<"Dial-Endpoint-Method">>, <<"single">>}
        ,{<<"Continue-On-Fail">>, <<"true">>}
        ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
+       ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(CSHs)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
       ]).
 
--spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
-bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId) ->
-    Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>),
+-spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
+bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, RetainCID, RetainName, RetainNumber) ->
+    Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>, RetainCID, RetainName, RetainNumber),
     kapi_resource:publish_originate_req(Req).

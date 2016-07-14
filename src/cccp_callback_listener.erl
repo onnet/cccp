@@ -178,7 +178,7 @@ originate_park(#state{account_id=AccountId
                      ,callback_delay=CallbackDelay
                      }) ->
     _ = timer:sleep(CallbackDelay),
-    Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>),
+    Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>, <<"false">>, <<>>, <<>>),
     kapi_resource:publish_originate_req(Req).
 
 -spec handle_resource_response(kz_json:object(), kz_proplist()) -> 'ok'.
@@ -222,7 +222,7 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
                                                  ,authorizing_id=AuthorizingId
                                                  ,auth_doc_id=AccountDocId
                                                  }) ->
-    cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId),
+    cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, <<"false">>, <<>>, <<>>),
     case AccountDocId of
         'undefined' -> 'ok';
         _ -> cccp_util:store_last_dialed(ToDID, AccountDocId)
