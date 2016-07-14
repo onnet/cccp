@@ -55,15 +55,11 @@ init([JObj]) ->
     AuthorizingId = kz_json:get_value(<<"Authorizing-ID">>, JObj),
     AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
     CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
-
-lager:info("IAM init JObj: ~p",[JObj]),
-
     RealCallbackDelay =
         case is_integer(CallbackDelay) of
             'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
             'false' -> kapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
         end,
-
     {'ok', #state{a_leg_number = ALegNumber
                  ,parked_call_id = 'undefined'
                  ,b_leg_number = BLegNumber
@@ -108,10 +104,10 @@ handle_cast({'gen_listener', {'created_queue', Q}}, #state{queue='undefined'}=S)
 handle_cast('originate_park', State) ->
     originate_park(State),
     {'noreply', State};
-handle_cast({'call_update', CallUpdate}, State) ->
-    {'noreply', State#state{call=CallUpdate}};
 handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q=CtrlQ}};
+handle_cast({'call_update', CallUpdate}, State) ->
+    {'noreply', State#state{call=CallUpdate}};
 handle_cast({'parked', CallId, ToDID}, State) ->
     _P = bridge_to_final_destination(CallId, ToDID, State),
     lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, _P]),
@@ -173,7 +169,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
 -spec originate_park(state()) -> 'ok'.
 originate_park(#state{account_id=AccountId
                      ,parked_call_id=CallId
@@ -194,10 +189,6 @@ handle_resource_response(JObj, Props) ->
         {<<"dialplan">>,<<"route_win">>} ->
             gen_listener:cast(Srv, {'call_update', kapps_call:from_route_win(JObj,call(Props))}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]});
-        {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
-            gen_listener:rm_binding(Srv, {'call',[]}),
-            CallIdNew = kz_json:get_value(<<"Replaced-By">>, JObj),
-            gen_listener:add_binding(Srv, {'call',[{'callid', CallIdNew}]});
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             CallUpdate = kapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}]
                                                       ,kapps_call:from_route_req(JObj,call(Props))

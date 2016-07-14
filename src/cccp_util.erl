@@ -207,26 +207,24 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action) ->
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
                ],
-Res =    props:filter_undefined(
+    props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Application-Name">>, Action}
-       ,{<<"Simplify-Loopback">>, 'false'}
        ,{<<"Endpoints">>, [kz_json:from_list(Endpoint)]}
        ,{<<"Resource-Type">>, <<"originate">>}
        ,{<<"Control-Queue">>, CtrlQ}
        ,{<<"Existing-Call-ID">>, CallId}
-       ,{<<"Originate-Immediate">>, 'true'}
+       ,{<<"Originate-Immediate">>, <<"true">>}
        ,{<<"Msg-ID">>, kz_util:rand_hex_binary(8)}
        ,{<<"Account-ID">>, AccountId}
        ,{<<"Dial-Endpoint-Method">>, <<"single">>}
-       ,{<<"Continue-On-Fail">>, 'true'}
+       ,{<<"Continue-On-Fail">>, <<"true">>}
        ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
-      ]), lager:info("IAM build_request Res: ~p",[Res]), Res.
+      ]).
 
 -spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
 bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId) ->
     Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>),
     kapi_resource:publish_originate_req(Req).
-
