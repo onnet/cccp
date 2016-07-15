@@ -21,7 +21,7 @@
 
 -include("cccp.hrl").
 
--define(DEFAULT_CALLEE_REGEX, <<"^\\+?\\d{3,}$">>).
+-define(DEFAULT_CALLEE_REGEX, <<"^\\+?\\d{7,}$">>).
 
 -spec relay_amqp(kz_json:object(), kz_proplist()) -> 'ok'.
 relay_amqp(JObj, Props) ->
