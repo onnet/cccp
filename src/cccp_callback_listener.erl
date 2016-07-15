@@ -49,18 +49,21 @@ start_link(JObj) ->
 
 -spec init(kz_json:object()) -> {'ok', state()}.
 init([JObj]) ->
+    ALegName = kz_json:get_value(<<"A-Leg-Name">>, JObj),
     ALegNumber = kz_json:get_value(<<"A-Leg-Number">>, JObj),
     BLegNumber = kz_json:get_value(<<"B-Leg-Number">>, JObj),
     AccountId = kz_json:get_value(<<"Account-ID">>, JObj),
     AuthorizingId = kz_json:get_value(<<"Authorizing-ID">>, JObj),
     AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
+    RetainCID = kz_json:get_value(<<"Retain-CID">>, JObj),
     CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
     RealCallbackDelay =
         case is_integer(CallbackDelay) of
             'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
             'false' -> kapps_config:get_integer(?CCCP_CONFIG_CAT, <<"callback_delay">>, 3) * ?MILLISECONDS_IN_SECOND
         end,
-    {'ok', #state{a_leg_number = ALegNumber
+    {'ok', #state{a_leg_name = ALegName
+                 ,a_leg_number = ALegNumber
                  ,parked_call_id = 'undefined'
                  ,b_leg_number = BLegNumber
                  ,account_id = AccountId
@@ -68,6 +71,7 @@ init([JObj]) ->
                  ,call = kapps_call:new()
                  ,queue = 'undefined'
                  ,auth_doc_id = AuthDocId
+                 ,retain_cid = RetainCID
                  ,callback_delay = RealCallbackDelay
                  }}.
 
@@ -221,8 +225,11 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
                                                  ,account_id=AccountId
                                                  ,authorizing_id=AuthorizingId
                                                  ,auth_doc_id=AccountDocId
+                                                 ,retain_cid=RetainCID
+                                                 ,a_leg_name=ALegName
+                                                 ,a_leg_number=ALegNumber
                                                  }) ->
-    cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, <<"false">>, <<>>, <<>>),
+    cccp_util:bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, RetainCID, ALegName, ALegNumber),
     case AccountDocId of
         'undefined' -> 'ok';
         _ -> cccp_util:store_last_dialed(ToDID, AccountDocId)

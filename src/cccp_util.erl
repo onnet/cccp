@@ -203,20 +203,24 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
             ,{<<"Authorizing-Type">>, <<"user">>}
             ,{<<"Retain-CID">>, RetainCID}
            ],
-    CSHs = [{<<"Diversions">>, [<<"<sip:78122404700@1.2.3.4>;reason=unconditional">>]}],
+    Diversions = case RetainCID of
+                     <<"true">> -> 
+                         AccountDb = kz_util:format_account_id(AccountId, 'encoded'),
+                         {AccountNumber,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
+                         [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@0.0.0.0>;reason=unconditional">>]}];
+                     <<"false">> -> []
+                 end,
     Endpoint = [
                 {<<"Invite-Format">>, <<"loopback">>}
                ,{<<"Route">>,  ToDID}
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
-               ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(CSHs)}
+               ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
                ],
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
-
-       ,{<<"Caller-ID-Name">>, RetainName}
-       ,{<<"Caller-ID-Number">>, RetainNumber}
-
+       ,{<<"Caller-ID-Name2">>, RetainName}
+       ,{<<"Caller-ID-Number2">>, RetainNumber}
        ,{<<"Application-Name">>, Action}
        ,{<<"Endpoints">>, [kz_json:from_list(Endpoint)]}
        ,{<<"Resource-Type">>, <<"originate">>}
@@ -227,8 +231,8 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
        ,{<<"Account-ID">>, AccountId}
        ,{<<"Dial-Endpoint-Method">>, <<"single">>}
        ,{<<"Continue-On-Fail">>, <<"true">>}
-       ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
-       ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(CSHs)}
+  %     ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
+  %     ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
       ]).

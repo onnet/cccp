@@ -13,15 +13,15 @@
             "required": false,
             "type": "string"
         },
-        "retain_cid": {
-            "description": "Pass initial caller number to the callee",
-            "required": false,
-            "type": "boolean"
-        },
         "pin": {
             "description": "PIN to authorize",
             "required": false,
             "type": "string"
+        },
+        "retain_cid": {
+            "description": "Pass initial caller number to the callee",
+            "required": false,
+            "type": "boolean"
         },
         "user_id": {
             "description": "The ID of the user object that 'owns' cid/pin",

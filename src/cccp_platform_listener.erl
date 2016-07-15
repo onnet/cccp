@@ -194,8 +194,9 @@ dial(AccountId, UserId, AuthDocId, RetainCID, Call) ->
     {'num_to_dial', ToDID} = cccp_util:get_number(CallUpdate),
     CallId = kapps_call:call_id(CallUpdate),
     CtrlQ = kapps_call:control_queue(CallUpdate),
+    CallerName = knm_converters:normalize(kapps_call:caller_id_name(Call)),
     CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
-    cccp_util:bridge(CallId, ToDID, UserId, CtrlQ, AccountId, RetainCID, CallerNumber, CallerNumber),
+    cccp_util:bridge(CallId, ToDID, UserId, CtrlQ, AccountId, RetainCID, CallerName, CallerNumber),
     cccp_util:store_last_dialed(ToDID, AuthDocId).
 
 -spec pin_collect(kapps_call:call()) -> 'ok'.

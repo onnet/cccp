@@ -74,11 +74,13 @@ handle_cccp_call(Call) ->
 
 -spec handle_callback(kapps_call:call()) -> 'ok'.
 handle_callback(Call) ->
+    CallerName = knm_converters:normalize(kapps_call:caller_id_name(Call)),
     CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
     kapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, UserId, AuthDocId, RetainCID] ->
-            JObj = kz_json:from_list([{<<"A-Leg-Number">>, CallerNumber}
+            JObj = kz_json:from_list([{<<"A-Leg-Name">>, CallerName}
+                                     ,{<<"A-Leg-Number">>, CallerNumber}
                                      ,{<<"Account-ID">>, AccountId}
                                      ,{<<"Authorizing-ID">>, UserId}
                                      ,{<<"Auth-Doc-Id">>, AuthDocId}
