@@ -219,8 +219,8 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                ],
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
-       ,{<<"Caller-ID-Name2">>, RetainName}
-       ,{<<"Caller-ID-Number2">>, RetainNumber}
+       ,{<<"Caller-ID-Name">>, RetainName}
+       ,{<<"Caller-ID-Number">>, RetainNumber}
        ,{<<"Application-Name">>, Action}
        ,{<<"Endpoints">>, [kz_json:from_list(Endpoint)]}
        ,{<<"Resource-Type">>, <<"originate">>}
