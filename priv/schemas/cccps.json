@@ -14,7 +14,7 @@
             "type": "string"
         },
         "retain_cid": {
-            "description": "Pass initial CID NUmber to the other leg",
+            "description": "Pass initial caller number to the callee",
             "required": false,
             "type": "boolean"
         },
