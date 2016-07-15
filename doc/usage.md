@@ -8,9 +8,7 @@
        "cccp_cb_number": "78127481093",
        "cccp_cc_number": "78127481000",
        "last_number_redial_code": "*0",
-       "ensure_valid_caller_id": true,
-       "default_caller_id_number": "00000000000",
-       "allowed_callee_regex": "^\\+?\\d{11,}$",
+       "allowed_callee_regex": "^\\+?\\d{7,}$",
        "callback_delay": 3
    },
    "pvt_account_id": "system_config",

@@ -194,7 +194,9 @@ cccp_allowed_callee(Number) ->
             'true'
     end.
 
--spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), boolean(), ne_binary(), ne_binary()) -> kz_proplist().
+-spec build_request(ne_binary(), ne_binary(), binary(), ne_binary(), ne_binary()
+                   ,ne_binary(), ne_binary(), boolean(), ne_binary(), ne_binary()
+                   ) -> kz_proplist().
 build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainCID, RetainName, RetainNumber) ->
     CCVs = [{<<"Account-ID">>, AccountId}
             ,{<<"Authorizing-ID">>, AuthorizingId}
