@@ -192,7 +192,10 @@ dial(AccountId, UserId, AuthDocId, RetainCID, Call) ->
     CallUpdate = kapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
     gen_listener:cast(kapps_call:kvs_fetch('server_pid', CallUpdate), {'call_update', CallUpdate}),
     {'num_to_dial', ToDID} = cccp_util:get_number(CallUpdate),
-    cccp_util:bridge(kapps_call:call_id(CallUpdate), ToDID, UserId, kapps_call:control_queue(CallUpdate), AccountId, RetainCID, <<>>, <<>>),
+    CallId = kapps_call:call_id(CallUpdate),
+    CtrlQ = kapps_call:control_queue(CallUpdate),
+    CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
+    cccp_util:bridge(CallId, ToDID, UserId, CtrlQ, AccountId, RetainCID, CallerNumber, CallerNumber),
     cccp_util:store_last_dialed(ToDID, AuthDocId).
 
 -spec pin_collect(kapps_call:call()) -> 'ok'.

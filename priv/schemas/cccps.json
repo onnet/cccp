@@ -1,0 +1,35 @@
+{
+    "_id": "cccps",
+    "description": "Calling cards callback platform user's info",
+    "id": "http://json-schema.org/draft-03/schema#",
+    "properties": {
+        "active": {
+            "default": false,
+            "description": "Show's whether CID/PIN active",
+            "type": "boolean"
+        },
+        "cid": {
+            "description": "CID to authorize",
+            "required": false,
+            "type": "string"
+        },
+        "retain_cid": {
+            "description": "Pass initial CID NUmber to the other leg",
+            "required": false,
+            "type": "boolean"
+        },
+        "pin": {
+            "description": "PIN to authorize",
+            "required": false,
+            "type": "string"
+        },
+        "user_id": {
+            "description": "The ID of the user object that 'owns' cid/pin",
+            "maxLength": 32,
+            "minLength": 32,
+            "name": "Owner ID",
+            "required": false,
+            "type": "string"
+        }
+    }
+}

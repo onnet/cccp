@@ -63,18 +63,18 @@ handle_config_change(_JObj, _Props) ->
 
 -spec handle_cccp_call(kapps_call:call()) -> 'ok'.
 handle_cccp_call(Call) ->
-    CID = knm_converters:normalize(kapps_call:caller_id_number(Call)),
     CB_Number = knm_converters:normalize(kapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>)),
     CC_Number = knm_converters:normalize(kapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>)),
     case knm_converters:normalize(kapps_call:request_user(Call)) of
         CB_Number ->
-            handle_callback(CID, Call);
+            handle_callback(Call);
         CC_Number ->
             cccp_platform_sup:new(Call)
     end.
 
--spec handle_callback(ne_binary(), kapps_call:call()) -> 'ok'.
-handle_callback(CallerNumber, Call) ->
+-spec handle_callback(kapps_call:call()) -> 'ok'.
+handle_callback(Call) ->
+    CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
     kapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
         [AccountId, UserId, AuthDocId, RetainCID] ->
