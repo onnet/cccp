@@ -11,9 +11,6 @@
 
 -define(CCCP_CONFIG_CAT, <<"cccp">>).
 
--define(TIMEOUT, <<"timeout">>).
--define(DEFAULT_TIMEOUT, 15).
-
 -record(state, {a_leg_number :: ne_binary()
                ,b_leg_number :: ne_binary()
                ,call = kapps_call:new() :: kapps_call:call()
