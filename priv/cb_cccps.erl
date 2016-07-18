@@ -254,7 +254,7 @@ normalize_view_results(JObj, Acc) ->
 -spec check_pin(cb_context:context()) -> cb_context:context().
 check_pin(Context) ->
     case unique_pin(Context) of
-        'empty' -> create(Context);
+        'true' -> create(Context);
         _ -> error_pin_exists(Context)
     end.
 
@@ -269,7 +269,7 @@ check_cid(Context) ->
             ReqData2 = kz_json:set_value(<<"cid">>, knm_converters:normalize(CID), ReqData),
             Context2 = cb_context:set_req_data(Context, ReqData2),
             case unique_cid(Context2) of
-                'empty' -> create(Context2);
+                'true' -> create(Context2);
                 _ -> error_cid_exists(Context2, CID)
             end
 
@@ -310,15 +310,18 @@ error_cid_exists(Context, CID) ->
                                    ,Context
      ).
 
--spec unique_cid(cb_context:context()) ->
-                        {'ok', list()} |
-                        'empty' |
-                        'error'.
+-spec unique_cid(cb_context:context()) -> boolean().
 unique_cid(Context) ->
     CID = kz_json:get_value(<<"cid">>, cb_context:req_data(Context)),
-    cccp_util:authorize(CID, <<"cccps/cid_listing">>).
+    case cccp_util:authorize(CID, <<"cccps/cid_listing">>) of
+        {'ok',[]} -> 'true';
+        _ -> 'false'
+    end.
 
--spec unique_pin(cb_context:context()) -> {'ok', list()} | 'empty' | 'error'.
+-spec unique_pin(cb_context:context()) -> boolean().
 unique_pin(Context) ->
     Pin = kz_json:get_value(<<"pin">>, cb_context:req_data(Context)),
-    cccp_util:authorize(Pin, <<"cccps/pin_listing">>).
+    case cccp_util:authorize(Pin, <<"cccps/pin_listing">>) of
+        {'ok',[]} -> 'true';
+        _ -> 'false'
+    end.

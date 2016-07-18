@@ -17,6 +17,8 @@
         ,bridge/8
         ,verify_entered_number/3
         ,get_last_dialed_number/1
+        ,current_account_outbound_directions/1
+        ,count_user_legs/2
         ]).
 
 -include("cccp.hrl").
@@ -67,18 +69,11 @@ handle_disconnect_cause(JObj, Call) ->
 authorize(Value, View) ->
     ViewOptions = [{'key', Value}],
     case kz_datamgr:get_results(?KZ_CCCPS_DB, View, ViewOptions) of
-        {'ok',[]} ->
-            lager:info("auth by ~p failed for: ~p. No such value in Db.", [Value, View]),
-            'empty';   %%% don't change. used in cb_cccps.erl
         {'ok', [JObj]} ->
-            [kz_json:get_value([<<"value">>,<<"account_id">>], JObj)
-            ,kz_json:get_value([<<"value">>,<<"user_id">>], JObj)
-            ,kz_json:get_value([<<"value">>,<<"id">>], JObj)
-            ,kz_json:get_binary_boolean([<<"value">>,<<"retain_cid">>], JObj, <<"false">>)
-            ];
-        _E ->
-            lager:info("auth failed for ~p. Error occurred: ~p.", [Value, _E]),
-            'error'
+            {'ok', kz_json:get_value(<<"value">>,JObj)};
+        Reply ->
+            lager:info("auth failed for ~p with reply: ~p.", [Value, Reply]),
+            Reply
     end.
 
 -spec get_number(kapps_call:call()) ->
@@ -242,3 +237,36 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
 bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, RetainCID, RetainName, RetainNumber) ->
     Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>, RetainCID, RetainName, RetainNumber),
     kapi_resource:publish_originate_req(Req).
+
+current_account_outbound_directions(AccountId) ->
+     [kz_json:get_value(<<"destination">>, Channel) || Channel <- current_account_channels(AccountId)
+                                                     ,kz_json:get_value(<<"direction">>, Channel) == <<"outbound">>].
+
+count_user_legs(UserId, AccountId) ->
+    lists:foldl(fun(Channel, Acc) -> is_user_channel(Channel, UserId) + Acc end, 0, current_account_channels(AccountId)). 
+
+
+is_user_channel(Channel, UserId) ->
+    case kz_json:get_value(<<"authorizing_id">>, Channel) of
+        UserId -> 1;
+        _ -> 0
+    end.
+
+current_account_channels(AccountId) ->
+    Req = [{<<"Realm">>, kz_util:get_account_realm(AccountId)}
+          ,{<<"Usernames">>, []}
+          ,{<<"Account-ID">>, AccountId}
+          ,{<<"Active-Only">>, 'false'}
+           | kz_api:default_headers(?APP_NAME, ?APP_VERSION)
+          ],
+    case kz_amqp_worker:call_collect(Req
+                                    ,fun kapi_call:publish_query_account_channels_req/1
+                                    ,{'ecallmgr', 'true'}
+                                    )
+    of
+        {'error', _R} ->
+            lager:info("cccp could not reach ecallmgr channels: ~p", [_R]),
+            [];
+        {_OK, [Resp|_]} ->
+            kz_json:get_value(<<"Channels">>, Resp, [])
+    end.

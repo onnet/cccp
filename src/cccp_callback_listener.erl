@@ -49,14 +49,14 @@ start_link(JObj) ->
 
 -spec init(kz_json:object()) -> {'ok', state()}.
 init([JObj]) ->
-    ALegName = kz_json:get_value(<<"A-Leg-Name">>, JObj),
-    ALegNumber = kz_json:get_value(<<"A-Leg-Number">>, JObj),
-    BLegNumber = kz_json:get_value(<<"B-Leg-Number">>, JObj),
-    AccountId = kz_json:get_value(<<"Account-ID">>, JObj),
-    AuthorizingId = kz_json:get_value(<<"Authorizing-ID">>, JObj),
-    AuthDocId = kz_json:get_value(<<"Auth-Doc-Id">>, JObj),
-    RetainCID = kz_json:get_value(<<"Retain-CID">>, JObj),
-    CallbackDelay = kz_json:get_value(<<"Callback-Delay">>, JObj),
+    ALegName = kz_json:get_value(<<"a_leg_name">>, JObj),
+    ALegNumber = kz_json:get_value(<<"a_leg_number">>, JObj),
+    BLegNumber = kz_json:get_value(<<"b_leg_number">>, JObj),
+    AccountId = kz_json:get_value(<<"account_id">>, JObj),
+    AuthorizingId = kz_json:get_value(<<"user_id">>, JObj),
+    AuthDocId = kz_json:get_value(<<"id">>, JObj),
+    RetainCID = kz_json:get_binary_boolean(<<"retain_cid">>, JObj, <<"false">>),
+    CallbackDelay = kz_json:get_value(<<"callback_delay">>, JObj),
     RealCallbackDelay =
         case is_integer(CallbackDelay) of
             'true' -> CallbackDelay * ?MILLISECONDS_IN_SECOND;
@@ -182,8 +182,13 @@ originate_park(#state{account_id=AccountId
                      ,callback_delay=CallbackDelay
                      }) ->
     _ = timer:sleep(CallbackDelay),
-    Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>, <<"false">>, <<>>, <<>>),
-    kapi_resource:publish_originate_req(Req).
+    case lists:member(ToDID, cccp_util:current_account_outbound_directions(AccountId)) of
+        'false' ->
+            Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>, <<"false">>, <<>>, <<>>),
+            kapi_resource:publish_originate_req(Req);
+        'true' ->
+            'ok'
+    end.
 
 -spec handle_resource_response(kz_json:object(), kz_proplist()) -> 'ok'.
 handle_resource_response(JObj, Props) ->

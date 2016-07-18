@@ -42,9 +42,9 @@ park_call(JObj, Props, Call) ->
 
 -spec handle_route_win(kz_json:object(), kz_proplist()) -> 'ok'.
 handle_route_win(JObj, _Props) ->
-    lager:info("cccp has received a route win, taking control of the call"),
     'true' = kapi_route:win_v(JObj),
     CallId = kz_json:get_value(<<"Call-ID">>, JObj),
+    lager:info("cccp has received a route win, taking control of the call CallId: ~p",[CallId]),
     case kapps_call:retrieve(CallId, ?APP_NAME) of
         {'ok', Call} ->
             handle_cccp_call(kapps_call:from_route_win(JObj, Call));
@@ -73,19 +73,26 @@ handle_cccp_call(Call) ->
 
 -spec handle_callback(kapps_call:call()) -> 'ok'.
 handle_callback(Call) ->
-    CallerName = knm_converters:normalize(kapps_call:caller_id_name(Call)),
     CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
-    kapps_call_command:hangup(Call),
     case cccp_util:authorize(CallerNumber, <<"cccps/cid_listing">>) of
-        [AccountId, UserId, AuthDocId, RetainCID] ->
-            JObj = kz_json:from_list([{<<"A-Leg-Name">>, CallerName}
-                                     ,{<<"A-Leg-Number">>, CallerNumber}
-                                     ,{<<"Account-ID">>, AccountId}
-                                     ,{<<"Authorizing-ID">>, UserId}
-                                     ,{<<"Auth-Doc-Id">>, AuthDocId}
-                                     ,{<<"Retain-CID">>, RetainCID}
-                                     ]),
-            cccp_callback_sup:new(JObj);
+        {'ok', AuthJObj} ->
+            maybe_call_back(AuthJObj, Call);
         E ->
             lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E])
+    end.
+
+-spec maybe_call_back(ne_binary(), kapps_call:call()) -> 'ok'.
+maybe_call_back(JObj, Call) ->
+    AccountId = kz_json:get_value(<<"account_id">>, JObj),
+    UserId = kz_json:get_value(<<"user_id">>, JObj),
+    case (cccp_util:count_user_legs(UserId, AccountId) > 2) of
+        'true' ->
+            Media = kz_media_util:get_prompt(<<"cf-move-too_many_channels">>, Call),
+            kapps_call_command:response(<<"486">>, <<"User busy">>, Media, Call);
+        'false' ->
+            kapps_call_command:hangup(Call),
+            Values = [{<<"a_leg_name">>, kapps_call:caller_id_name(Call)}
+                     ,{<<"a_leg_number">>, knm_converters:normalize(kapps_call:caller_id_number(Call))}
+                     ],
+            cccp_callback_sup:new(kz_json:set_values(Values, JObj))
     end.
