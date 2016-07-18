@@ -205,9 +205,10 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
            ],
     Diversions = case RetainCID of
                      <<"true">> -> 
+                         Realm = kz_util:get_account_realm(AccountId),
                          AccountDb = kz_util:format_account_id(AccountId, 'encoded'),
-                         {AccountNumber,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
-                         [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@0.0.0.0>;reason=unconditional">>]}];
+                         {<<"+", AccountNumber/binary>>,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
+                         [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@", Realm/binary, ">;reason=unconditional">>]}];
                      <<"false">> -> []
                  end,
     Endpoint = [
@@ -231,8 +232,8 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
        ,{<<"Account-ID">>, AccountId}
        ,{<<"Dial-Endpoint-Method">>, <<"single">>}
        ,{<<"Continue-On-Fail">>, <<"true">>}
-  %     ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
-  %     ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
+       ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
+       ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
        ,{<<"Export-Custom-Channel-Vars">>, [<<"Account-ID">>, <<"Retain-CID">>, <<"Authorizing-ID">>, <<"Authorizing-Type">>]}
        | kz_api:default_headers(Q, <<"resource">>, <<"originate_req">>, ?APP_NAME, ?APP_VERSION)
       ]).
@@ -240,5 +241,4 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
 -spec bridge(ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> 'ok'.
 bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, RetainCID, RetainName, RetainNumber) ->
     Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>, RetainCID, RetainName, RetainNumber),
-lager:info("IAM bridge Req: ~p",[Req]),
     kapi_resource:publish_originate_req(Req).

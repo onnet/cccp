@@ -22,7 +22,6 @@ handle_route_req(JObj, Props) ->
     Call = kapps_call:from_route_req(JObj),
     CB_Number = knm_converters:normalize(kapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cb_number">>)),
     CC_Number = knm_converters:normalize(kapps_config:get(?CCCP_CONFIG_CAT, <<"cccp_cc_number">>)),
-
     case knm_converters:normalize(kapps_call:request_user(Call)) of
         CB_Number -> park_call(JObj, Props, Call);
         CC_Number -> park_call(JObj, Props, Call);
@@ -43,7 +42,7 @@ park_call(JObj, Props, Call) ->
 
 -spec handle_route_win(kz_json:object(), kz_proplist()) -> 'ok'.
 handle_route_win(JObj, _Props) ->
-    lager:info("CCCP has received a route win, taking control of the call"),
+    lager:info("cccp has received a route win, taking control of the call"),
     'true' = kapi_route:win_v(JObj),
     CallId = kz_json:get_value(<<"Call-ID">>, JObj),
     case kapps_call:retrieve(CallId, ?APP_NAME) of
