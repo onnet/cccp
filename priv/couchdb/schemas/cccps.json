@@ -13,16 +13,13 @@
             "required": false,
             "type": "string"
         },
+        "max_concurent_calls_per_user": {
+            "description": "Calls per user limit. Counts all user's legs and compares to max_concurent_calls_per_user multiplied by 2",
+            "required": false,
+            "type": "integer"
+        },
         "pin": {
             "description": "PIN to authorize",
-            "required": false,
-            "type": "string"
-        },
-        "user_id": {
-            "description": "The ID of the user object that 'owns' cid/pin",
-            "maxLength": 32,
-            "minLength": 32,
-            "name": "Owner ID",
             "required": false,
             "type": "string"
         },
@@ -31,10 +28,13 @@
             "required": false,
             "type": "boolean"
         },
-        "max_concurent_calls_per_user": {
-            "description": "Calls per user limit. Counts all user's legs and compares to max_concurent_calls_per_user multiplied by 2",
+        "user_id": {
+            "description": "The ID of the user object that 'owns' cid/pin",
+            "maxLength": 32,
+            "minLength": 32,
+            "name": "Owner ID",
             "required": false,
-            "type": "integer"
+            "type": "string"
         }
     }
 }

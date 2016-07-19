@@ -238,20 +238,23 @@ bridge(CallId, ToDID, AuthorizingId, CtrlQ, AccountId, RetainCID, RetainName, Re
     Req = build_request(CallId, ToDID, AuthorizingId, 'undefined', CtrlQ, AccountId, <<"bridge">>, RetainCID, RetainName, RetainNumber),
     kapi_resource:publish_originate_req(Req).
 
+-spec current_account_outbound_directions(ne_binary()) -> ne_binaries(). 
 current_account_outbound_directions(AccountId) ->
      [kz_json:get_value(<<"destination">>, Channel) || Channel <- current_account_channels(AccountId)
                                                      ,kz_json:get_value(<<"direction">>, Channel) == <<"outbound">>].
 
+-spec count_user_legs(ne_binary(), ne_binary()) -> integer().
 count_user_legs(UserId, AccountId) ->
     lists:foldl(fun(Channel, Acc) -> is_user_channel(Channel, UserId) + Acc end, 0, current_account_channels(AccountId)). 
 
-
+-spec is_user_channel(kz_json:object(), ne_binary()) -> integer().
 is_user_channel(Channel, UserId) ->
     case kz_json:get_value(<<"authorizing_id">>, Channel) of
         UserId -> 1;
         _ -> 0
     end.
 
+-spec current_account_channels(ne_binary()) -> kz_proplist().
 current_account_channels(AccountId) ->
     Req = [{<<"Realm">>, kz_util:get_account_realm(AccountId)}
           ,{<<"Usernames">>, []}
