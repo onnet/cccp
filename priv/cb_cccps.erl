@@ -117,14 +117,20 @@ validate_cccps(Context, ?HTTP_PUT) ->
 
 -spec validate_cccp(cb_context:context(), path_token(), http_method()) -> cb_context:context().
 validate_cccp(Context, ?AUTODIAL, ?HTTP_PUT) ->
-    ReqData = cb_context:req_data(Context),
-    Values = [{<<"account_id">>, cb_context:account_id(Context)}
-             ,{<<"user_id">>, cb_context:auth_user_id(Context)}
-             ],
-    JObj = kz_json:set_values(Values, ReqData),
-    lager:info("IAM cb_cccps JObj: ~p",[JObj]),
-    cccp_callback_sup:new(JObj),
-    cb_context:set_resp_status(Context, 'success');
+    AccountId = cb_context:account_id(Context),
+    case (cb_context:auth_account_id(Context) == AccountId) of
+        'true' ->
+            ReqData = cb_context:req_data(Context),
+            Values = [{<<"account_id">>, cb_context:account_id(Context)}
+                     ,{<<"user_id">>, cb_context:auth_user_id(Context)}
+                     ],
+            JObj = kz_json:set_values(Values, ReqData),
+            cccp_callback_sup:new(JObj),
+            cb_context:set_resp_status(Context, 'success');
+        'false' ->
+            Resp = {[{<<"message">>, <<"For direct use by account holder only">>}]},
+            cb_context:add_validation_error(<<"account">>, <<"forbidden">>, Resp, Context)
+    end;
 validate_cccp(Context, Id, ?HTTP_GET) ->
     read(Id, Context);
 validate_cccp(Context, Id, ?HTTP_POST) ->
