@@ -30,5 +30,6 @@ Options:
 
 ToDo:
 
-- Phonebook per pin/cid | user based | account based
+- phonebook per pin/cid | user based | account based
+- announcement to a_leg callee on over API calls
 - ...
