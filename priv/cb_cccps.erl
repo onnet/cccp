@@ -117,12 +117,12 @@ validate_cccps(Context, ?HTTP_PUT) ->
 
 -spec validate_cccp(cb_context:context(), path_token(), http_method()) -> cb_context:context().
 validate_cccp(Context, ?AUTODIAL, ?HTTP_PUT) ->
-    JObj = kz_json:from_list([{<<"A-Leg-Number">>, kz_json:get_value(<<"a_leg_number">>, cb_context:req_data(Context))}
-                             ,{<<"B-Leg-Number">>, kz_json:get_value(<<"b_leg_number">>, cb_context:req_data(Context))}
-                             ,{<<"Authorizing-ID">>, cb_context:auth_user_id(Context)}
-                             ,{<<"Account-ID">>, cb_context:account_id(Context)}
-                             ,{<<"Callback-Delay">>, kz_json:get_value(<<"callback_delay">>, cb_context:req_data(Context))}
-                             ]),
+    ReqData = cb_context:req_data(Context),
+    Values = [{<<"account_id">>, cb_context:account_id(Context)}
+             ,{<<"user_id">>, cb_context:auth_user_id(Context)}
+             ],
+    JObj = kz_json:set_values(Values, ReqData),
+    lager:info("IAM cb_cccps JObj: ~p",[JObj]),
     cccp_callback_sup:new(JObj),
     cb_context:set_resp_status(Context, 'success');
 validate_cccp(Context, Id, ?HTTP_GET) ->
