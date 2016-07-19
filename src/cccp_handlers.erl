@@ -81,11 +81,12 @@ handle_callback(Call) ->
             lager:info("No caller information found for ~p. Won't call it back. (~p)", [CallerNumber, E])
     end.
 
--spec maybe_call_back(ne_binary(), kapps_call:call()) -> 'ok'.
+-spec maybe_call_back(kz_json:object(), kapps_call:call()) -> 'ok'.
 maybe_call_back(JObj, Call) ->
     AccountId = kz_json:get_value(<<"account_id">>, JObj),
     UserId = kz_json:get_value(<<"user_id">>, JObj),
-    case (cccp_util:count_user_legs(UserId, AccountId) > 2) of
+    MaxConcurentCallsPerUser = kz_json:get_integer_value(<<"max_concurent_calls_per_user">>, JObj, 1),
+    case (cccp_util:count_user_legs(UserId, AccountId) >= MaxConcurentCallsPerUser * 2) of
         'true' ->
             Media = kz_media_util:get_prompt(<<"cf-move-too_many_channels">>, Call),
             kapps_call_command:response(<<"486">>, <<"User busy">>, Media, Call);

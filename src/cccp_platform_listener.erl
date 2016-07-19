@@ -181,14 +181,18 @@ handle_answer(JObj, Props) ->
 process_call(Call) ->
     CID = knm_converters:normalize(kapps_call:caller_id_number(Call)),
     case cccp_util:authorize(CID, <<"cccps/cid_listing">>) of
-        [AccountId, UserId, AuthDocId, RetainCID] ->
-            dial(AccountId, UserId, AuthDocId, RetainCID, Call);
+        {'ok', AuthJObj} ->
+            dial(AuthJObj, Call);
         _ ->
             pin_collect(Call)
     end.
 
--spec dial(ne_binary(), ne_binary(), ne_binary(), ne_binary(), kapps_call:call()) -> 'ok'.
-dial(AccountId, UserId, AuthDocId, RetainCID, Call) ->
+-spec dial(kz_json:object(), kapps_call:call()) -> 'ok'.
+dial(JObj, Call) ->
+    AccountId = kz_json:get_value(<<"account_id">>, JObj),
+    UserId = kz_json:get_value(<<"user_id">>, JObj),
+    AuthDocId = kz_json:get_value(<<"id">>, JObj),
+    RetainCID = kz_json:get_binary_boolean(<<"retain_cid">>, JObj, <<"false">>),
     CallUpdate = kapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
     gen_listener:cast(kapps_call:kvs_fetch('server_pid', CallUpdate), {'call_update', CallUpdate}),
     {'num_to_dial', ToDID} = cccp_util:get_number(CallUpdate),
@@ -220,8 +224,8 @@ pin_collect(Call, Retries) ->
 -spec handle_entered_pin(kapps_call:call(), integer(), ne_binary()) -> 'ok'.
 handle_entered_pin(Call, Retries, EnteredPin) ->
     case cccp_util:authorize(EnteredPin, <<"cccps/pin_listing">>) of
-        [AccountId, UserId, AuthDocId, RetainCID] ->
-            dial(AccountId, UserId, AuthDocId, RetainCID, Call);
+        {'ok', AuthJObj} ->
+            dial(AuthJObj, Call);
         _ ->
             lager:info("Wrong Pin entered."),
             kapps_call_command:b_prompt(<<"disa-invalid_pin">>, Call),
