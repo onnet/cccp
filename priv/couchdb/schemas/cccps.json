@@ -18,11 +18,6 @@
             "required": false,
             "type": "string"
         },
-        "retain_cid": {
-            "description": "Pass initial caller number to the callee",
-            "required": false,
-            "type": "boolean"
-        },
         "user_id": {
             "description": "The ID of the user object that 'owns' cid/pin",
             "maxLength": 32,
@@ -30,6 +25,16 @@
             "name": "Owner ID",
             "required": false,
             "type": "string"
+        },
+        "retain_cid": {
+            "description": "Pass initial caller number to the callee",
+            "required": false,
+            "type": "boolean"
+        },
+        "max_concurent_calls_per_user": {
+            "description": "Calls per user limit. Counts all user's legs and compares to max_concurent_calls_per_user multiplied by 2",
+            "required": false,
+            "type": "integer"
         }
     }
 }
