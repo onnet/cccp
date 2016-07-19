@@ -191,17 +191,26 @@ process_call(Call) ->
 dial(JObj, Call) ->
     AccountId = kz_json:get_value(<<"account_id">>, JObj),
     UserId = kz_json:get_value(<<"user_id">>, JObj),
-    AuthDocId = kz_json:get_value(<<"id">>, JObj),
-    RetainCID = kz_json:get_binary_boolean(<<"retain_cid">>, JObj, <<"false">>),
-    CallUpdate = kapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
-    gen_listener:cast(kapps_call:kvs_fetch('server_pid', CallUpdate), {'call_update', CallUpdate}),
-    {'num_to_dial', ToDID} = cccp_util:get_number(CallUpdate),
-    CallId = kapps_call:call_id(CallUpdate),
-    CtrlQ = kapps_call:control_queue(CallUpdate),
-    CallerName = knm_converters:normalize(kapps_call:caller_id_name(Call)),
-    CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
-    cccp_util:bridge(CallId, ToDID, UserId, CtrlQ, AccountId, RetainCID, CallerName, CallerNumber),
-    cccp_util:store_last_dialed(ToDID, AuthDocId).
+    MaxConcurentCallsPerUser = kz_json:get_integer_value(<<"max_concurent_calls_per_user">>, JObj, 1),
+    case (cccp_util:count_user_legs(UserId, AccountId) >= MaxConcurentCallsPerUser * 2) of
+        'true' ->
+            kapps_call_command:b_prompt(<<"cf-move-too_many_channels">>, Call),
+            kapps_call_command:hangup(Call);
+        'false' ->
+            AccountId = kz_json:get_value(<<"account_id">>, JObj),
+            UserId = kz_json:get_value(<<"user_id">>, JObj),
+            AuthDocId = kz_json:get_value(<<"id">>, JObj),
+            RetainCID = kz_json:get_binary_boolean(<<"retain_cid">>, JObj, <<"false">>),
+            CallUpdate = kapps_call:kvs_store('auth_doc_id', AuthDocId, Call),
+            gen_listener:cast(kapps_call:kvs_fetch('server_pid', CallUpdate), {'call_update', CallUpdate}),
+            {'num_to_dial', ToDID} = cccp_util:get_number(CallUpdate),
+            CallId = kapps_call:call_id(CallUpdate),
+            CtrlQ = kapps_call:control_queue(CallUpdate),
+            CallerName = knm_converters:normalize(kapps_call:caller_id_name(Call)),
+            CallerNumber = knm_converters:normalize(kapps_call:caller_id_number(Call)),
+            cccp_util:bridge(CallId, ToDID, UserId, CtrlQ, AccountId, RetainCID, CallerName, CallerNumber),
+            cccp_util:store_last_dialed(ToDID, AuthDocId)
+    end.
 
 -spec pin_collect(kapps_call:call()) -> 'ok'.
 pin_collect(Call) ->
