@@ -35,6 +35,8 @@
 -define(QUEUE_OPTIONS, []).
 -define(CONSUME_OPTIONS, []).
 
+-define(PROMPT_DELAY, kapps_config:get_integer(?CCCP_CONFIG_CAT, <<"prompt_delay">>, 1) * ?MILLISECONDS_IN_SECOND).
+
 %%--------------------------------------------------------------------
 %% @doc Starts the server
 %%--------------------------------------------------------------------
@@ -257,6 +259,7 @@ b_leg_number(Props) ->
     case props:get_value('b_leg_number', Props) of
         'undefined' ->
             Call = props:get_value('call', Props),
+            _ = timer:sleep(?PROMPT_DELAY),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
         BLegNumber ->
@@ -271,6 +274,7 @@ maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
         MediaId ->
             Call = props:get_value('call', Props),
             MediaPath = kz_media_util:media_path(MediaId, Call),
+            _ = timer:sleep(?PROMPT_DELAY),
             kapps_call_command:b_play(MediaPath, Call),
             BLegNumber
     end.
