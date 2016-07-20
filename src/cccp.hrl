@@ -21,6 +21,7 @@
                ,parked_call_id :: ne_binary()
                ,offnet_ctl_q :: ne_binary()
                ,auth_doc_id :: ne_binary()
+               ,media_id :: ne_binary()
                ,retain_cid :: ne_binary()
                ,self = self() :: pid()
                ,consumer_pid :: pid()

@@ -55,6 +55,7 @@ init([JObj]) ->
     AccountId = kz_json:get_value(<<"account_id">>, JObj),
     AuthorizingId = kz_json:get_value(<<"user_id">>, JObj),
     AuthDocId = kz_json:get_value(<<"id">>, JObj),
+    MediaId = kz_json:get_value(<<"media_id">>, JObj),
     RetainCID = kz_json:get_binary_boolean(<<"retain_cid">>, JObj, <<"false">>),
     CallbackDelay = kz_json:get_value(<<"callback_delay">>, JObj),
     RealCallbackDelay =
@@ -71,6 +72,7 @@ init([JObj]) ->
                  ,call = kapps_call:new()
                  ,queue = 'undefined'
                  ,auth_doc_id = AuthDocId
+                 ,media_id = MediaId
                  ,retain_cid = RetainCID
                  ,callback_delay = RealCallbackDelay
                  }}.
@@ -142,8 +144,18 @@ handle_info(_Info, State) ->
 %% @spec handle_event(JObj, State) -> {reply, Options}
 %% @end
 %%--------------------------------------------------------------------
-handle_event(_JObj, #state{call=Call, b_leg_number=BLegNumber, auth_doc_id=AuthDocId}=_State) ->
-    {'reply', [{'call', Call},{b_leg_number, BLegNumber},{auth_doc_id, AuthDocId}]}.
+handle_event(_JObj, #state{call=Call
+                          ,b_leg_number=BLegNumber
+                          ,auth_doc_id=AuthDocId
+                          ,media_id=MediaId
+                          }=_State
+            ) ->
+    {'reply', [{'call', Call}
+              ,{'b_leg_number', BLegNumber}
+              ,{'auth_doc_id', AuthDocId}
+              ,{'media_id', MediaId}
+              ]
+    }.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -247,7 +259,20 @@ b_leg_number(Props) ->
             Call = props:get_value('call', Props),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
-        BLegNumber -> BLegNumber
+        BLegNumber ->
+            maybe_make_announcement_to_a_leg(BLegNumber, Props)
+    end.
+
+-spec maybe_make_announcement_to_a_leg(ne_binary(), kz_proplist()) -> ne_binary().
+maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
+    case props:get_value('media_id', Props) of
+        'undefined' ->
+            BLegNumber;
+        MediaId ->
+            Call = props:get_value('call', Props),
+            MediaPath = kz_media_util:media_path(MediaId, Call),
+            kapps_call_command:b_play(MediaPath, Call),
+            BLegNumber
     end.
 
 -spec call(kz_proplist()) -> kapps_call:call().
