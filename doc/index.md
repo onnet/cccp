@@ -26,10 +26,10 @@ Options:
 - caller's CID based on configured user_id
 - retain initial caller's CID 
 - concurent calls quantity contriol per user_id
+- announcement to a_leg callee on over API calls
 
 
 ToDo:
 
 - phonebook per pin/cid | user based | account based
-- announcement to a_leg callee on over API calls
 - ...
