@@ -202,7 +202,7 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                      <<"true">> -> 
                          Realm = kz_util:get_account_realm(AccountId),
                          AccountDb = kz_util:format_account_id(AccountId, 'encoded'),
-                         {<<"+", AccountNumber/binary>>,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
+                         {AccountNumber,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
                          [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@", Realm/binary, ">;reason=unconditional">>]}];
                      <<"false">> -> []
                  end,
