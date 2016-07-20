@@ -201,7 +201,7 @@ originate_park(#state{account_id=AccountId
             Req = cccp_util:build_request(CallId, ToDID, AuthorizingId, Q, 'undefined', AccountId, <<"park">>, <<"false">>, <<>>, <<>>),
             kapi_resource:publish_originate_req(Req);
         'true' ->
-            'ok'
+            gen_listener:cast(self(), 'stop_callback')
     end.
 
 -spec handle_resource_response(kz_json:object(), kz_proplist()) -> 'ok'.

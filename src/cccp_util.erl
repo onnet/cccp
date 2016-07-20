@@ -193,7 +193,6 @@ cccp_allowed_callee(Number) ->
                    ,ne_binary(), ne_binary(), boolean(), ne_binary(), ne_binary()
                    ) -> kz_proplist().
 build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainCID, RetainName, RetainNumber) ->
-    {CIDNumber, CIDName} = compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId),
     CCVs = [{<<"Account-ID">>, AccountId}
             ,{<<"Authorizing-ID">>, AuthorizingId}
             ,{<<"Authorizing-Type">>, <<"user">>}
@@ -214,6 +213,7 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
                ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
                ],
+    {CIDNumber, CIDName} = compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId),
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Caller-ID-Name">>, maybe_cid_name(CIDName, CIDNumber)}
