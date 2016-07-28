@@ -193,14 +193,16 @@ cccp_allowed_callee(Number) ->
                    ,ne_binary(), ne_binary(), boolean(), ne_binary(), ne_binary()
                    ) -> kz_proplist().
 build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainCID, RetainName, RetainNumber) ->
-    CCVs = [{<<"Account-ID">>, AccountId}
-            ,{<<"Authorizing-ID">>, AuthorizingId}
-            ,{<<"Authorizing-Type">>, <<"user">>}
-            ,{<<"Retain-CID">>, RetainCID}
-           ],
+    {CIDNumber, CIDName} = compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId),
+    Realm = kz_util:get_account_realm(AccountId),
+    CCVs = props:filter_undefined([{<<"Account-ID">>, AccountId}
+                                  ,{<<"Authorizing-ID">>, AuthorizingId}
+                                  ,{<<"Authorizing-Type">>, <<"user">>}
+                                  ,{<<"Retain-CID">>, RetainCID}
+                                  ,{<<"Presence-ID">>, build_presence(CIDNumber, Realm)}
+                                 ]),
     Diversions = case RetainCID of
                      <<"true">> -> 
-                         Realm = kz_util:get_account_realm(AccountId),
                          AccountDb = kz_util:format_account_id(AccountId, 'encoded'),
                          {AccountNumber,_} = kz_attributes:maybe_get_assigned_number('undefined', 'undefined', AccountDb),
                          [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@", Realm/binary, ">;reason=unconditional">>]}];
@@ -213,7 +215,6 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
                ,{<<"Custom-SIP-Headers">>,  kz_json:from_list(Diversions)}
                ],
-    {CIDNumber, CIDName} = compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId),
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
        ,{<<"Caller-ID-Name">>, maybe_cid_name(CIDName, CIDNumber)}
@@ -302,3 +303,8 @@ current_account_channels(AccountId) ->
         {_OK, [Resp|_]} ->
             kz_json:get_value(<<"Channels">>, Resp, [])
     end.
+
+-spec build_presence(ne_binary()|'undefined', ne_binary()) -> ne_binary()|'undefined'.
+build_presence('undefined', _) -> 'undefined';
+build_presence(CIDNumber, Realm) -> <<CIDNumber/binary, "@", Realm/binary>>.
+
