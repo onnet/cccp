@@ -199,7 +199,8 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                                   ,{<<"Authorizing-ID">>, AuthorizingId}
                                   ,{<<"Authorizing-Type">>, <<"user">>}
                                   ,{<<"Retain-CID">>, RetainCID}
-                                  ,{<<"Presence-ID">>, build_presence(CIDNumber, Realm)}
+                                  ,{<<"Presence-ID">>, build_presence(ToDID, Realm)}
+                              %    ,{<<"Presence-ID">>, build_presence(CIDNumber, Realm)}
                                  ]),
     Diversions = case RetainCID of
                      <<"true">> -> 
@@ -217,6 +218,11 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                ],
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
+
+     %      ,{<<"Simplify-Loopback">>, <<"true">>}
+     %      ,{<<"Loopback-Bowout">>, <<"true">>}
+
+
        ,{<<"Caller-ID-Name">>, maybe_cid_name(CIDName, CIDNumber)}
        ,{<<"Caller-ID-Number">>, CIDNumber}
        ,{<<"Application-Name">>, Action}
@@ -246,7 +252,8 @@ compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId) ->
         <<"true">> ->
             maybe_outbound_call(ToDID, RetainNumber, RetainName, AccountId);
         _ ->
-            {'undefined','undefined'}
+          %  {'undefined','undefined'}
+            {ToDID, ToDID}
     end.
 
 -spec maybe_outbound_call(ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> {ne_binary(), ne_binary()}.

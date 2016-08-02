@@ -116,6 +116,9 @@ handle_cast({'offnet_ctl_queue', CtrlQ}, State) ->
     {'noreply', State#state{offnet_ctl_q=CtrlQ}};
 handle_cast({'call_update', CallUpdate}, State) ->
     {'noreply', State#state{call=CallUpdate}};
+handle_cast({'call_id_update', NewCallId}, #state{call=Call}=State) ->
+    NewCall = kapps_call:set_call_id(NewCallId, Call) ,
+    {'noreply', State#state{parked_call_id = NewCallId, call = NewCall}};
 handle_cast({'parked', CallId, ToDID}, State) ->
     _P = bridge_to_final_destination(CallId, ToDID, State),
     lager:debug("bridging to ~s (via ~s) in ~p", [ToDID, CallId, _P]),
@@ -212,6 +215,11 @@ handle_resource_response(JObj, Props) ->
         {<<"dialplan">>,<<"route_win">>} ->
             gen_listener:cast(Srv, {'call_update', kapps_call:from_route_win(JObj,call(Props))}),
             gen_listener:add_binding(Srv, {'call',[{'callid', CallId}]});
+        {<<"call_event">>,<<"CHANNEL_REPLACED">>} ->
+            gen_listener:rm_binding(Srv, {'call',[]}),
+            NewCallId = kz_json:get_value(<<"Replaced-By">>, JObj),
+            gen_listener:cast(Srv, {'call_id_update', NewCallId}),
+            gen_listener:add_binding(Srv, {'call',[{'callid', NewCallId}]});
         {<<"call_event">>,<<"CHANNEL_ANSWER">>} ->
             CallUpdate = kapps_call:kvs_store_proplist([{'consumer_pid', self()},{'auth_doc_id', props:get_value('auth_doc_id',Props)}]
                                                       ,kapps_call:from_route_req(JObj,call(Props))
@@ -262,6 +270,9 @@ b_leg_number(Props) ->
             _ = timer:sleep(?PROMPT_DELAY),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
+        <<ConfId:32/binary>> ->
+            Call = ensure_switch_hostname(props:get_value('call', Props)),
+            conf_discover(ConfId, Call);
         BLegNumber ->
             maybe_make_announcement_to_a_leg(BLegNumber, Props)
     end.
@@ -282,3 +293,32 @@ maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
 -spec call(kz_proplist()) -> kapps_call:call().
 call(Props) ->
     props:get_value('call', Props).
+
+conf_discover(ConfId, Call) ->
+    Data = {[{<<"id">>,ConfId},{<<"moderator">>,false},{<<"play_entry_tone">>,true},{<<"play_exit_tone">>,true}]},
+    Command =
+        props:filter_undefined(
+          [{<<"Call">>, kapps_call:to_json(Call)}
+          ,{<<"Conference-ID">>, kz_doc:id(Data)}
+          ,{<<"Moderator">>, kz_json:get_binary_boolean(<<"moderator">>, Data)}
+          ,{<<"Play-Welcome">>, kz_json:is_true([<<"welcome_prompt">>, <<"play">>], Data, 'true')}
+          ,{<<"Play-Welcome-Media">>, kz_json:get_ne_value([<<"welcome_prompt">>, <<"media_id">>], Data)}
+          ,{<<"Conference-Doc">>, kz_json:get_value(<<"config">>, Data)}
+          ,{<<"Play-Exit-Tone">>, kz_json:get_ne_value([<<"play_exit_tone">>], Data)}
+          ,{<<"Play-Entry-Tone">>, kz_json:get_ne_value([<<"play_entry_tone">>], Data)}
+           | kz_api:default_headers(?APP_NAME, ?APP_VERSION)
+          ]),
+    kapi_conference:publish_discovery_req(Command).
+
+ensure_switch_hostname(Call) ->
+    case kapps_call:switch_hostname(Call) of
+        'undefined' -> switch_hostname_lookup(Call);
+        _ -> Call
+    end.
+
+switch_hostname_lookup(Call) ->
+    case kapps_call:switch_nodename(Call) of
+        <<"freeswitch@", Hostname/binary>> ->
+            kapps_call:set_switch_hostname(Hostname, Call);
+        _ -> Call
+    end.
