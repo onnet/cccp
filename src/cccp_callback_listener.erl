@@ -268,7 +268,7 @@ bridge_to_final_destination(CallId, ToDID, #state{offnet_ctl_q=CtrlQ
 b_leg_number(Props) ->
     case props:get_value('b_leg_number', Props) of
         'undefined' ->
-            Call = props:get_value('call', Props),
+            Call = call(Props),
             _ = timer:sleep(?PROMPT_DELAY),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
@@ -284,7 +284,7 @@ maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
         'undefined' ->
             BLegNumber;
         MediaId ->
-            Call = props:get_value('call', Props),
+            Call = call(Props),
             MediaPath = kz_media_util:media_path(MediaId, Call),
             _ = timer:sleep(?PROMPT_DELAY),
             kapps_call_command:b_play(MediaPath, Call),
@@ -308,7 +308,7 @@ maybe_handle_doc(JObj, Props) ->
     Call = call(Props),
     case kz_doc:type(JObj) of
         <<"conference">> ->
-            conf_discover(JObj, ensure_switch_hostname(Call));
+            conf_discover(JObj, ensure_call(Call));
         _ ->
             kapps_call_command:hangup(Call)
     end.
@@ -323,8 +323,8 @@ conf_discover(ConfDoc, Call) ->
           ]),
     kapi_conference:publish_discovery_req(Command).
 
--spec ensure_switch_hostname(kapps_call:call()) -> kapps_call:call().
-ensure_switch_hostname(Call) ->
+-spec ensure_call(kapps_call:call()) -> kapps_call:call().
+ensure_call(Call) ->
     case kapps_call:switch_hostname(Call) of
         'undefined' -> switch_hostname_lookup(Call);
         _ -> Call
