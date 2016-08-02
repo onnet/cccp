@@ -295,13 +295,15 @@ maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
 call(Props) ->
     props:get_value('call', Props).
 
+-spec maybe_handle_doc_id(ne_binary(), kz_proplist()) -> 'ok'.
 maybe_handle_doc_id(DocId, Props) ->
     AccountDb = kz_util:format_account_id(props:get_value('account_id', Props), 'encoded'),
     case kz_datamgr:open_cache_doc(AccountDb, DocId) of
-        {'error', _} -> 'false';
+        {'error', _} -> kapps_call_command:hangup(call(Props));
         {'ok', JObj} -> maybe_handle_doc(JObj, Props)
     end.
 
+-spec maybe_handle_doc(kz_json:object(), kz_proplist()) -> 'ok'.
 maybe_handle_doc(JObj, Props) ->
     Call = call(Props),
     case kz_doc:type(JObj) of
@@ -311,6 +313,7 @@ maybe_handle_doc(JObj, Props) ->
             kapps_call_command:hangup(Call)
     end.
 
+-spec conf_discover(kz_json:object(), kapps_call:call()) -> 'ok'.
 conf_discover(ConfDoc, Call) ->
     Command =
         props:filter_undefined(
@@ -320,12 +323,14 @@ conf_discover(ConfDoc, Call) ->
           ]),
     kapi_conference:publish_discovery_req(Command).
 
+-spec ensure_switch_hostname(kapps_call:call()) -> kapps_call:call().
 ensure_switch_hostname(Call) ->
     case kapps_call:switch_hostname(Call) of
         'undefined' -> switch_hostname_lookup(Call);
         _ -> Call
     end.
 
+-spec switch_hostname_lookup(kapps_call:call()) -> kapps_call:call().
 switch_hostname_lookup(Call) ->
     case kapps_call:switch_nodename(Call) of
         <<"freeswitch@", Hostname/binary>> ->
