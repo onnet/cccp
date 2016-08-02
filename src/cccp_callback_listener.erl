@@ -295,7 +295,11 @@ call(Props) ->
     props:get_value('call', Props).
 
 conf_discover(ConfId, Call) ->
-    Data = {[{<<"id">>,ConfId},{<<"moderator">>,false},{<<"play_entry_tone">>,true},{<<"play_exit_tone">>,true}]},
+    Data = {[{<<"id">>,ConfId}
+            ,{<<"moderator">>,false}
+            ,{<<"play_entry_tone">>,true}
+            ,{<<"play_exit_tone">>,true}
+            ]},
     Command =
         props:filter_undefined(
           [{<<"Call">>, kapps_call:to_json(Call)}
