@@ -200,7 +200,6 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                                   ,{<<"Authorizing-Type">>, <<"user">>}
                                   ,{<<"Retain-CID">>, RetainCID}
                                   ,{<<"Presence-ID">>, build_presence(ToDID, Realm)}
-                              %    ,{<<"Presence-ID">>, build_presence(CIDNumber, Realm)}
                                  ]),
     Diversions = case RetainCID of
                      <<"true">> -> 
@@ -209,8 +208,7 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                          [{<<"Diversions">>, [<<"<sip:", AccountNumber/binary, "@", Realm/binary, ">;reason=unconditional">>]}];
                      <<"false">> -> []
                  end,
-    Endpoint = [
-                {<<"Invite-Format">>, <<"loopback">>}
+    Endpoint = [{<<"Invite-Format">>, <<"loopback">>}
                ,{<<"Route">>,  ToDID}
                ,{<<"To-DID">>, ToDID}
                ,{<<"Custom-Channel-Vars">>, kz_json:from_list(CCVs)}
@@ -218,11 +216,6 @@ build_request(CallId, ToDID, AuthorizingId, Q, CtrlQ, AccountId, Action, RetainC
                ],
     props:filter_undefined(
       [{<<"Resource-Type">>, <<"audio">>}
-
-     %      ,{<<"Simplify-Loopback">>, <<"true">>}
-     %      ,{<<"Loopback-Bowout">>, <<"true">>}
-
-
        ,{<<"Caller-ID-Name">>, maybe_cid_name(CIDName, CIDNumber)}
        ,{<<"Caller-ID-Number">>, CIDNumber}
        ,{<<"Application-Name">>, Action}
@@ -252,8 +245,7 @@ compose_cid(ToDID, RetainCID, RetainNumber, RetainName, AccountId) ->
         <<"true">> ->
             maybe_outbound_call(ToDID, RetainNumber, RetainName, AccountId);
         _ ->
-          %  {'undefined','undefined'}
-            {ToDID, ToDID}
+            {'undefined','undefined'}
     end.
 
 -spec maybe_outbound_call(ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> {ne_binary(), ne_binary()}.
@@ -275,11 +267,14 @@ maybe_outbound_call(ToDID, RetainNumber, RetainName, AccountId) ->
 maybe_cid_name('undefined', Number) -> Number;
 maybe_cid_name(Name, _) -> Name.
 
+-spec build_presence(ne_binary()|'undefined', ne_binary()) -> ne_binary()|'undefined'.
+build_presence('undefined', _) -> 'undefined';
+build_presence(Number, Realm) -> <<Number/binary, "@", Realm/binary>>.
+
 -spec current_account_outbound_directions(ne_binary()) -> ne_binaries(). 
 current_account_outbound_directions(AccountId) ->
      [kz_json:get_value(<<"destination">>, Channel) || Channel <- current_account_channels(AccountId)
                                                      ,kz_json:get_value(<<"direction">>, Channel) == <<"outbound">>].
-
 -spec count_user_legs(ne_binary(), ne_binary()) -> integer().
 count_user_legs(UserId, AccountId) ->
     lists:foldl(fun(Channel, Acc) -> is_user_channel(Channel, UserId) + Acc end, 0, current_account_channels(AccountId)). 
@@ -310,8 +305,3 @@ current_account_channels(AccountId) ->
         {_OK, [Resp|_]} ->
             kz_json:get_value(<<"Channels">>, Resp, [])
     end.
-
--spec build_presence(ne_binary()|'undefined', ne_binary()) -> ne_binary()|'undefined'.
-build_presence('undefined', _) -> 'undefined';
-build_presence(CIDNumber, Realm) -> <<CIDNumber/binary, "@", Realm/binary>>.
-

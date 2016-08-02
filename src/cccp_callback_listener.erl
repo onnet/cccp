@@ -150,12 +150,14 @@ handle_info(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_event(_JObj, #state{call=Call
+                          ,account_id=AccountId
                           ,b_leg_number=BLegNumber
                           ,auth_doc_id=AuthDocId
                           ,media_id=MediaId
                           }=_State
             ) ->
     {'reply', [{'call', Call}
+              ,{'account_id', AccountId}
               ,{'b_leg_number', BLegNumber}
               ,{'auth_doc_id', AuthDocId}
               ,{'media_id', MediaId}
@@ -270,9 +272,8 @@ b_leg_number(Props) ->
             _ = timer:sleep(?PROMPT_DELAY),
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
-        <<ConfId:32/binary>> ->
-            Call = ensure_switch_hostname(props:get_value('call', Props)),
-            conf_discover(ConfId, Call);
+        <<DocId:32/binary>> ->
+            maybe_handle_doc_id(DocId, Props);
         BLegNumber ->
             maybe_make_announcement_to_a_leg(BLegNumber, Props)
     end.
@@ -294,22 +295,27 @@ maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
 call(Props) ->
     props:get_value('call', Props).
 
-conf_discover(ConfId, Call) ->
-    Data = {[{<<"id">>,ConfId}
-            ,{<<"moderator">>,false}
-            ,{<<"play_entry_tone">>,true}
-            ,{<<"play_exit_tone">>,true}
-            ]},
+maybe_handle_doc_id(DocId, Props) ->
+    AccountDb = kz_util:format_account_id(props:get_value('account_id', Props), 'encoded'),
+    case kz_datamgr:open_cache_doc(AccountDb, DocId) of
+        {'error', _} -> 'false';
+        {'ok', JObj} -> maybe_handle_doc(JObj, Props)
+    end.
+
+maybe_handle_doc(JObj, Props) ->
+    Call = call(Props),
+    case kz_doc:type(JObj) of
+        <<"conference">> ->
+            conf_discover(JObj, ensure_switch_hostname(Call));
+        _ ->
+            kapps_call_command:hangup(Call)
+    end.
+
+conf_discover(ConfDoc, Call) ->
     Command =
         props:filter_undefined(
           [{<<"Call">>, kapps_call:to_json(Call)}
-          ,{<<"Conference-ID">>, kz_doc:id(Data)}
-          ,{<<"Moderator">>, kz_json:get_binary_boolean(<<"moderator">>, Data)}
-          ,{<<"Play-Welcome">>, kz_json:is_true([<<"welcome_prompt">>, <<"play">>], Data, 'true')}
-          ,{<<"Play-Welcome-Media">>, kz_json:get_ne_value([<<"welcome_prompt">>, <<"media_id">>], Data)}
-          ,{<<"Conference-Doc">>, kz_json:get_value(<<"config">>, Data)}
-          ,{<<"Play-Exit-Tone">>, kz_json:get_ne_value([<<"play_exit_tone">>], Data)}
-          ,{<<"Play-Entry-Tone">>, kz_json:get_ne_value([<<"play_entry_tone">>], Data)}
+          ,{<<"Conference-ID">>, kz_doc:id(ConfDoc)}
            | kz_api:default_headers(?APP_NAME, ?APP_VERSION)
           ]),
     kapi_conference:publish_discovery_req(Command).
