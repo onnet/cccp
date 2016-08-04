@@ -273,22 +273,22 @@ b_leg_number(Props) ->
             {'num_to_dial', Number} = cccp_util:get_number(Call),
             Number;
         <<DocId:32/binary>> ->
+            _ = maybe_make_announcement_to_a_leg(Props),
             maybe_handle_doc_id(DocId, Props);
         BLegNumber ->
-            maybe_make_announcement_to_a_leg(BLegNumber, Props)
+            _ = maybe_make_announcement_to_a_leg(Props),
+            BLegNumber
     end.
 
--spec maybe_make_announcement_to_a_leg(ne_binary(), kz_proplist()) -> ne_binary().
-maybe_make_announcement_to_a_leg(BLegNumber, Props) ->
+-spec maybe_make_announcement_to_a_leg(kz_proplist()) -> ne_binary().
+maybe_make_announcement_to_a_leg(Props) ->
     case props:get_value('media_id', Props) of
-        'undefined' ->
-            BLegNumber;
-        MediaId ->
+        <<MediaId:32/binary>> ->
             Call = call(Props),
             MediaPath = kz_media_util:media_path(MediaId, Call),
             _ = timer:sleep(?PROMPT_DELAY),
-            kapps_call_command:b_play(MediaPath, Call),
-            BLegNumber
+            kapps_call_command:b_play(MediaPath, Call);
+        _ -> 'ok'
     end.
 
 -spec call(kz_proplist()) -> kapps_call:call().
